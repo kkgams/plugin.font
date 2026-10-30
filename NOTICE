@@ -1,10 +1,23 @@
 plugin.font
 Copyright 2026 GAMS contributors
 
-This scaffold does not yet include msdf-atlas-gen, msdfgen, FreeType, or
-artery-font-format source. Their licenses and attribution must accompany
-any future integration; this notice does not relicense those projects.
+First-party code is licensed under Apache-2.0. This does not relicense the
+third-party code described below; retain its notices and license texts.
+
+Adapted msdf-atlas-gen code and the original web renderer:
+Copyright (c) 2020 - 2025 Viktor Chlumsky, MIT License.
+msdfgen:
+Copyright (c) 2014 - 2025 Viktor Chlumsky, MIT License.
+artery-font-format:
+Copyright (c) 2020 - 2024 Viktor Chlumsky, MIT License.
+
+This software is based in part on the work of the FreeType Team.
+FreeType 2.14.1 is used under the FreeType License (FTL), not the GPL
+alternative. Its contributed BDF/PCF/hash code, bundled zlib and
+HarfBuzz-derived files retain their respective notices.
+
+Portions of this software are copyright © 2025 The FreeType Project (www.freetype.org). All rights reserved.
 
 The build uses WASI SDK (including LLVM/libc++/wasi-libc runtime code) and
-wit-bindgen-generated bindings. Their upstream license texts are included
-in release archives under LICENSES/.
+wit-bindgen-generated bindings. Their upstream license texts, together
+with the font-library notices, accompany distributions under LICENSES/.

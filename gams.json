@@ -28,15 +28,15 @@
       "ui-layout": {
         "url": "https://github.com/kkgams/ui-service.layout/releases/download/v0.2.0/ui-service.layout-0.2.0.zip#ui-plugins/layout.js",
         "config": {
-          "layout": "<view-font-smoke />"
+          "layout": "<view-font />"
         }
       }
     },
     "views": {
-      "view-font-smoke": {
-        "url": "dev/view-font-smoke.js",
-        "label": "Font plugin smoke test",
-        "group": "Development",
+      "view-font": {
+        "url": "dist/views/view-font.js",
+        "label": "Font atlas",
+        "group": "Assets",
         "internal": false
       }
     }

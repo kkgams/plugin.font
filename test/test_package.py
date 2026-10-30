@@ -29,6 +29,7 @@ class PackageTests(unittest.TestCase):
             "NOTICE": b"notice\n",
             "README.md": b"# Font component scaffold\n",
             "wit/package.wit": b"package gams:font@0.1.0;\n",
+            "dist/views/view-font.js": b"// bundled font View and preview renderer\n",
             "LICENSES/wasi-sdk.txt": b"SDK license\n",
             "LICENSES/wit-bindgen.txt": b"bindings license\n",
         }
@@ -43,11 +44,15 @@ class PackageTests(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"not shipped")
+        dep = self.root / "wit/deps/wasi-filesystem/package.wit"
+        dep.parent.mkdir(parents=True)
+        dep.write_bytes(b"package wasi:filesystem@0.2.0;\n")
         archive = PACKAGER.package(self.root, "v0.1.0")
         expected = {
+            "wit/deps/wasi-filesystem/package.wit": dep.read_bytes(),
             "plugin.font.wasm": self.inputs["dist/plugin.font.wasm"],
-            **{name: data for name, data in self.inputs.items()
-               if name not in ("dist/plugin.font.wasm", "version.txt")},
+            **{name: self.inputs[source] for source, name in PACKAGER.INPUTS},
+            **{name: data for name, data in self.inputs.items() if name.startswith("LICENSES/")},
         }
         with zipfile.ZipFile(archive) as package:
             self.assertEqual(set(package.namelist()), set(expected))

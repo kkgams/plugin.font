@@ -21,6 +21,7 @@ INPUTS = (
     ("NOTICE", "NOTICE"),
     ("README.md", "README.md"),
     ("wit/package.wit", "wit/package.wit"),
+    ("dist/views/view-font.js", "views/view-font.js"),
 )
 
 
@@ -34,6 +35,10 @@ def package(root: Path, tag: str | None = None) -> Path:
 
     # Read everything before writing output, so missing inputs never leave a ZIP.
     contents = [(name, (root / source).read_bytes()) for source, name in INPUTS]
+    contents.extend(
+        (path.relative_to(root).as_posix(), path.read_bytes())
+        for path in sorted((root / "wit/deps").rglob("*.wit"))
+    )
     licenses = sorted(path for path in (root / "LICENSES").rglob("*") if path.is_file())
     if not licenses:
         raise ValueError("LICENSES must contain third-party license files")

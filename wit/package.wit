@@ -1,10 +1,49 @@
 package gams:font@0.1.0;
 
 interface font {
-    /// Build identity only. Atlas generation and Artery decoding are not implemented.
+    /// Immutable generated or decoded atlas, owned by the caller.
+    resource font;
+    enum atlas-type { sdf, psdf, msdf, mtsdf }
+    enum edge-coloring { simple, ink-trap, distance }
+    enum pixel-format { r8, rgb8, rgba8 }
+    record dimensions { width: u32, height: u32 }
+    record config {
+        atlas-type: atlas-type,
+        codepoints: list<u32>,
+        size: f64,
+        distance-range: f64,
+        dimensions: option<dimensions>,
+        edge-coloring: edge-coloring,
+        miter-limit: f64,
+    }
+    record atlas-details {
+        dimensions: dimensions,
+        pixel-format: pixel-format,
+        atlas-type: atlas-type,
+        distance-range: f64,
+        size: f64,
+    }
+    enum error-code {
+        invalid-font, invalid-config, unsupported-format, atlas-too-small,
+        missing-glyph, invalid-artery, resource-limit, encode-failed, io-error,
+    }
+    record font-error { code: error-code, message: string }
     info: func() -> string;
+    generate: func(bytes: list<u8>, config: config) -> result<font, font-error>;
+    decode: func(bytes: list<u8>) -> result<font, font-error>;
+    atlas-info: func(font: borrow<font>) -> atlas-details;
+    /// Bottom-up, tightly packed, linear unsigned 8-bit channels.
+    atlas-pixels: func(font: borrow<font>) -> list<u8>;
+    metadata-json: func(font: borrow<font>) -> string;
+    encode: func(font: borrow<font>) -> result<list<u8>, font-error>;
+    /// Paths use the Host-granted WASI filesystem, never plugin.fs.
+    generate-file: func(path: string, config: config) -> result<font, font-error>;
+    open: func(path: string) -> result<font, font-error>;
+    save: func(font: borrow<font>, path: string) -> result<u64, font-error>;
 }
 
 world font-plugin {
+    import wasi:filesystem/types@0.2.0;
+    import wasi:filesystem/preopens@0.2.0;
     export font;
 }

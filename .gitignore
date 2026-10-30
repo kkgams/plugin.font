@@ -2,6 +2,7 @@
 /dist/
 /gams_modules/
 /tools/
+/node_modules/
 /.direnv/
 __pycache__/
 *.pyc

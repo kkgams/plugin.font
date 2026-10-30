@@ -1,5 +1,5 @@
 ---
 title: plugin.font
-description: Build, package and release the minimal GAMS font component scaffold.
+description: Generate font atlases and develop, package and release the GAMS font component and View.
 home: index
 ---

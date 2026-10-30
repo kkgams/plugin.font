@@ -1,1 +1,1 @@
-- [[index|Font component development]]
+- [[index|Font atlas development]]
