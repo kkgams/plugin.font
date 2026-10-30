@@ -1,0 +1,51 @@
+name: Check and release component
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - name: Check, test and package
+        run: nix develop --command make ci
+      - name: Validate release tag and package
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: nix develop --command make release RELEASE_TAG="$RELEASE_TAG"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: font-release
+          path: |
+            dist/plugin.font.wasm
+            dist/plugin.font-*.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: font-release
+          path: dist/
+      - name: Publish release without overwriting
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --generate-notes \
+            dist/plugin.font.wasm "dist/plugin.font-${RELEASE_TAG#v}.zip" dist/SHA256SUMS

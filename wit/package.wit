@@ -1,0 +1,10 @@
+package gams:font@0.1.0;
+
+interface font {
+    /// Build identity only. Atlas generation and Artery decoding are not implemented.
+    info: func() -> string;
+}
+
+world font-plugin {
+    export font;
+}

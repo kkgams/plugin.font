@@ -1,0 +1,8 @@
+/build/
+/dist/
+/gams_modules/
+/tools/
+/.direnv/
+__pycache__/
+*.pyc
+.DS_Store

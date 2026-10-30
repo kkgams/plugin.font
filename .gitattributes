@@ -1,0 +1,3 @@
+* text=auto
+# Preserve upstream legal text verbatim, including its whitespace.
+LICENSES/** -whitespace
