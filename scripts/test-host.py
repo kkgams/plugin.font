@@ -11,7 +11,7 @@ HOST = ROOT / "tools/gams.app/Contents/MacOS/gams"
 
 def invoke(method, *args):
     process = subprocess.run(
-        [str(HOST), "run", "--plug", "dist/plugin.font.wasm", f"font/font::{method}", json.dumps(args)],
+        [str(HOST), "run", "--plug", "build.nosync/plugin.font.wasm", f"font/font::{method}", json.dumps(args)],
         cwd=ROOT, env={**os.environ, "GAMS_APP_CWD": str(ROOT)},
         capture_output=True, text=True, check=True,
     )
@@ -23,7 +23,7 @@ def require(value, message):
         raise SystemExit(message)
 
 
-version = (ROOT / "version.txt").read_text().strip()
+version = "0.1.0"  # Public WIT interface identity, independent of release tags.
 require(invoke("info").startswith(f"plugin.font {version}"), "Unexpected native Host build identity")
 config = {
     "atlas-type": "mtsdf", "codepoints": [32, 65, 86], "size": 32,

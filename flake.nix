@@ -102,7 +102,7 @@
         in {
           default = pkgs.mkShell {
             # SDK bin is appended in shellHook so it cannot shadow native clang.
-            packages = [ wasm-tools wit-bindgen pkgs.gnumake pkgs.python3 pkgs.curl pkgs.git pkgs.nodejs_24 pkgs.unzip pkgs.cmake pkgs.ninja pkgs.clang pkgs.pkg-config pkgs.esbuild ];
+            packages = [ wasm-tools wit-bindgen pkgs.gnumake pkgs.python3 pkgs.curl pkgs.git pkgs.nodejs_24 pkgs.unzip pkgs.cmake pkgs.ninja pkgs.clang pkgs.pkg-config pkgs.esbuild pkgs.zip pkgs.cargo pkgs.rustc pkgs.rustfmt pkgs.actionlint ];
             shellHook = ''
               export WASI_SDK_PATH="${wasi-sdk}"
               export WASI_SYSROOT="$WASI_SDK_PATH/share/wasi-sysroot"

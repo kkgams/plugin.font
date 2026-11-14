@@ -3,10 +3,10 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-component = (root / "dist/plugin.font.wasm").read_bytes()
+component = (root / "build.nosync/plugin.font.wasm").read_bytes()
 if component[:8] != b"\0asm\x0d\0\x01\0":
     raise SystemExit("Expected a WASM component, not a core module")
-wit = (root / "build/extracted.wit").read_text()
+wit = (root / "build.nosync/extracted.wit").read_text()
 for required in (
     "export gams:font/font@0.1.0;", "info: func() -> string;", "resource font;",
     "generate: func(", "decode: func(", "encode: func(", "atlas-info: func(",

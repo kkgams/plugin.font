@@ -2,7 +2,7 @@
   "plugins": [
     "https://github.com/kkgams/plugin.fs/releases/download/v0.2.0/plugin.fs.wasm",
     "https://github.com/kkgams/plugin.layout/releases/download/v0.2.0/plugin.layout.wasm",
-    "dist/plugin.font.wasm"
+    "build.nosync/plugin.font.wasm"
   ],
   "ui": {
     "keys": [],
@@ -34,7 +34,7 @@
     },
     "views": {
       "view-font": {
-        "url": "dist/views/view-font.js",
+        "url": "build.nosync/views/view-font.js",
         "label": "Font atlas",
         "group": "Assets",
         "internal": false

@@ -5,8 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(GAMS_FONT_COMPONENT "Build the WASI component instead of native tests" ON)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/version.txt" FONT_VERSION)
-string(STRIP "${FONT_VERSION}" FONT_VERSION)
+set(GAMS_FONT_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/build.nosync" CACHE PATH "Component output directory")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/wit/package.wit" FONT_WIT)
+string(REGEX MATCH "gams:font@([0-9]+\\.[0-9]+\\.[0-9]+)" FONT_PACKAGE "${FONT_WIT}")
+set(FONT_VERSION "${CMAKE_MATCH_1}")
 
 # All dependency sources are local. No find_package, FetchContent or submodules.
 add_library(freetype STATIC
@@ -103,17 +105,17 @@ if(GAMS_FONT_COMPONENT)
   add_executable(font-component
     src/component.cpp
     src/wasi-files.cpp
-    build/bindings/font_plugin.c
-    build/bindings/font_plugin_component_type.o
+    build.nosync/bindings/font_plugin.c
+    build.nosync/bindings/font_plugin_component_type.o
   )
-  target_include_directories(font-component PRIVATE build/bindings)
+  target_include_directories(font-component PRIVATE build.nosync/bindings)
   target_compile_definitions(font-component PRIVATE GAMS_FONT_VERSION="${FONT_VERSION}")
   target_compile_options(font-component PRIVATE -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(font-component PRIVATE font-engine)
   target_link_options(font-component PRIVATE -mexec-model=reactor -Wl,--strip-all)
   set_target_properties(font-component PROPERTIES
     OUTPUT_NAME plugin.font SUFFIX .wasm
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/dist"
+    RUNTIME_OUTPUT_DIRECTORY "${GAMS_FONT_OUTPUT}"
   )
 else()
   enable_testing()
