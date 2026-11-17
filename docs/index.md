@@ -61,22 +61,25 @@ only a successful write changes the current save path. Opening TTF/OTF clears
 the save path. Saving keeps the generation source unchanged.
 
 The header's **Open font**, **Save** (when a path is needed), **Save as**,
-**Export linked JSON** and **Export atlas PNG** controls use `view-files`
+and **Export JSON + PNG** controls use `view-files`
 chooser/saver popups through `ui.popup`. All View file reads and writes go through `plugin.fs`, without native
 browser upload/download dialogs. Open a Project TTF/OTF, then press **Generate**;
 opening an Artery font restores its atlas directly.
 
-Export **atlas PNG first**. A successful save updates **Atlas Project path**
-(initially `font.png`) to the chosen Project path. Then export **linked JSON**;
-the suggested basename follows the PNG (`font.font.json` for `font.png`).
-The JSON can live anywhere in the Project: `image` is relative to the Project
-root, **not** the JSON file's directory. If you move/re-export the PNG, export
-JSON again to update its reference. Each save writes a temporary sibling file
-then renames it over the destination; an existing destination is replaced.
+**Export JSON + PNG** asks for one JSON destination (initially `font.json`) and
+writes both files together. `fonts/title.json` produces `fonts/title.png` beside
+it; only the final `.json` extension is replaced, so `title.font.json` produces
+`title.font.png`. The JSON's `image` is relative to the Project root, **not** the
+JSON file's directory. No atlas-path field or previous export is required.
+
+Each file is written to a temporary sibling then renamed over its destination;
+existing destinations are replaced. PNG is replaced first, then JSON. The pair
+is not atomic: if JSON fails after PNG succeeds, the error identifies the partial
+export. Export again to complete the pair. A PNG failure leaves JSON untouched.
 Parent directories must already exist; the Files popup can create folders.
-Cancelling a picker does not write files. Use a nonempty
-`/`-separated PNG path, without leading `/`, empty/`.`/`..` segments, backslashes,
-URL syntax, control characters or surrounding whitespace.
+Cancelling the picker writes neither file. Use a nonempty `/`-separated JSON
+path without leading `/`, empty/`.`/`..` segments, backslashes, URL syntax,
+control characters or surrounding whitespace.
 
 The UTF-8 JSON object retains the component's complete `atlas`, `metrics`,
 `glyphs` and `kerning` values and adds exactly these contract fields:

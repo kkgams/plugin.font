@@ -13,30 +13,30 @@ test("linked JSON adds only its versioned contract and preserves raw metadata", 
         kerning: [{ unicode1: 65, unicode2: 65, advance: -0.1 }],
     }
     const original = structuredClone(metadata)
-    const linked = linkedFontExport(metadata, "fonts/font.png")
+    const linked = linkedFontExport(metadata, "fonts/font.json")
     assert.deepEqual(linked, {
         document: { ...original, format: "gams.font", version: 1, image: "fonts/font.png" },
-        imageFilename: "font.png", jsonFilename: "font.font.json",
+        imagePath: "fonts/font.png", jsonPath: "fonts/font.json",
     })
     assert.deepEqual(metadata, original)
     assert.deepEqual(JSON.parse(JSON.stringify(linked.document)).glyphs, original.glyphs)
 })
 
-test("suggested export basenames follow the Project PNG path, including nested and Unicode names", () => {
-    for (const [path, png, json] of [
-        ["font.png", "font.png", "font.font.json"],
-        ["assets/fonts/日本語 regular.PNG", "日本語 regular.PNG", "日本語 regular.font.json"],
-        ["fonts/ui.bold.png", "ui.bold.png", "ui.bold.font.json"],
+test("paired PNG replaces only the JSON extension, including nested and Unicode names", () => {
+    for (const [json, png] of [
+        ["font.json", "font.png"],
+        ["assets/fonts/日本語 regular.JSON", "assets/fonts/日本語 regular.png"],
+        ["fonts/ui.bold.font.json", "fonts/ui.bold.font.png"],
     ]) {
-        const linked = linkedFontExport({}, path)
-        assert.equal(linked.document.image, path)
-        assert.equal(linked.imageFilename, png)
-        assert.equal(linked.jsonFilename, json)
+        const linked = linkedFontExport({}, json)
+        assert.equal(linked.document.image, png)
+        assert.equal(linked.imagePath, png)
+        assert.equal(linked.jsonPath, json)
     }
 })
 
-test("invalid or non-Project PNG paths are rejected before either export", () => {
-    for (const path of [null, undefined, 7, "", "font.jpg", ".png", "/font.png", "//host/font.png", "../font.png", "fonts/../font.png", "./font.png", "fonts//font.png", "fonts/./font.png", "fonts\\font.png", "C:/font.png", "https://host/font.png", "font.png?raw", "font.png#atlas", " font.png", "font.png ", "fonts/\u0000font.png", "fonts/\nfont.png"]) {
+test("invalid or non-Project JSON paths are rejected before either file is written", () => {
+    for (const path of [null, undefined, 7, "", "font.png", ".json", "/font.json", "//host/font.json", "../font.json", "fonts/../font.json", "./font.json", "fonts//font.json", "fonts/./font.json", "fonts\\font.json", "C:/font.json", "https://host/font.json", "font.json?raw", "font.json#atlas", " font.json", "font.json ", "fonts/\u0000font.json", "fonts/\nfont.json"]) {
         assert.throws(() => linkedFontExport({}, path), RangeError, String(path))
     }
 })

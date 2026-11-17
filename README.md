@@ -59,8 +59,8 @@ Artery (`.arfont`) is the native save format. **Save** updates the current
 Artery file, asking for a destination on first save. **Save as** always asks for
 a destination and makes it the current save path after success. Opening a
 TTF/OTF clears that destination; saving never changes the generation source.
-Header controls also open Project TTF/OTF/Artery fonts and export PNG or linked
-JSON using the Files popup. A separate viewport group provides
+Header controls also open Project TTF/OTF/Artery fonts and **Export JSON + PNG**
+using one Files popup. A separate viewport group provides
 **Zoom in**, **Zoom out**, and **Fit preview**, enabled once an atlas is loaded.
 Choose a TTF/OTF and press **Generate**;
 opening Artery restores its atlas directly. All paths are inside the Project.
@@ -69,10 +69,12 @@ directories must already exist (create them in the Files popup).
 
 The View exports `gams.font` version-1 JSON: existing `atlas`, `metrics`, `glyphs`
 and `kerning` plus `format: "gams.font"`, `version: 1` and `image`, a PNG path
-relative to the Project root (not the JSON directory). Export PNG first: its
-successful save updates **Atlas Project path** (initially `font.png`). Then export
-JSON to any Project directory. If you move/re-export the PNG elsewhere, export
-JSON again so its reference matches.
+relative to the Project root (not the JSON directory). Choose a JSON destination
+once: `fonts/title.json` writes that file and `fonts/title.png`. Only the final
+`.json` extension is replaced, so `title.font.json` produces `title.font.png`.
+Both destinations are replaced if they exist. PNG is written before JSON;
+the pair is not atomic. If JSON fails after PNG succeeds, the error reports the
+partial export; export again to complete the pair.
 PNG rows are top-down; metadata atlas bounds remain bottom-origin pixels.
 Plane bounds, advances, kerning and metrics use em; atlas size uses pixels/em.
 See [the exact export contract](docs/index.md#linked-json--png-export) for units,

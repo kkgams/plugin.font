@@ -78,7 +78,6 @@ export class ViewFont extends ViewCanvasBase {
                     <label>Live sample <textarea data-field="sample" rows="2" ${exact}>The quick brown fox jumps over the lazy dog.\n0123456789</textarea></label>
                     <label>Preview size (pixels) <input type="number" data-field="preview-size" min="1" step="any" value="56" required ${exact}></label>
                     <label>MTSDF effect <select data-field="effect"><option value="fill">Fill</option><option value="outline">Outline</option><option value="glow">Glow</option><option value="shadow">Shadow</option></select></label>
-                    <label>Atlas Project path <input type="text" data-field="atlas-path" value="font.png" ${exact}></label>
                 </fieldset>
                 <table><caption>Atlas information</caption><tbody data-element="info"></tbody></table>
             </form></aside>
@@ -111,8 +110,7 @@ export class ViewFont extends ViewCanvasBase {
                 ["open", "Open font", "folder_open", () => this.open()],
                 ["save", "Save", "save", () => this.save()],
                 ["save-as", "Save as", "save_as", () => this.saveAs()],
-                ["json", "Export linked JSON", "data_object", () => this.export("json")],
-                ["png", "Export atlas PNG", "image", () => this.export("png")],
+                ["export", "Export JSON + PNG", "data_object", () => this.export()],
             ]],
             ["view-actions", [
                 ["zoom-in", "Zoom in", "zoom_in", () => this.zoomIn()],
@@ -332,27 +330,25 @@ export class ViewFont extends ViewCanvasBase {
         })
     }
 
-    export(format) {
-        return this.operation(`Export ${format}`, async current => {
+    export() {
+        return this.operation("Export JSON + PNG", async current => {
             if (this.resource === null || this.font === null) throw new UserError("Generate or open a font first")
-            invariant(format === "json" || format === "png", "Unknown font export format")
-            let linked
-            try { linked = linkedFontExport(this.font.metadata, this.field("atlas-path").value) }
-            catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
-            const path = await this.choose("saver", format === "json" ? "Export linked font JSON" : "Export atlas PNG",
-                format === "json" ? "*.font.json,*.json" : "*.png", format === "json" ? linked.jsonFilename : linked.imageFilename)
+            const path = await this.choose("saver", "Export JSON + PNG", "*.json", "font.json")
             if (path === null) return false
             if (!current()) return
-            if (format === "json") {
-                if (!/\.json$/i.test(path)) throw new UserError("JSON path must end in .json")
-                await writeFile(path, new TextEncoder().encode(JSON.stringify(linked.document, null, 2) + "\n"))
-            } else {
-                try { linkedFontExport(this.font.metadata, path) }
-                catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
-                const bytes = await atlasPng(this.font)
-                if (!current()) return
-                await writeFile(path, bytes)
-                if (current()) this.field("atlas-path").value = path
+            let linked
+            try { linked = linkedFontExport(this.font.metadata, path) }
+            catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
+            const json = new TextEncoder().encode(JSON.stringify(linked.document, null, 2) + "\n")
+            const png = await atlasPng(this.font)
+            if (!current()) return
+            await writeFile(linked.imagePath, png)
+            // Publish JSON only after its image exists. Two file replacements are
+            // not atomic; report a partial export explicitly rather than success.
+            try { await writeFile(linked.jsonPath, json) }
+            catch (error) {
+                if (!(error instanceof UserError)) throw error
+                throw new UserError(`PNG saved at ${linked.imagePath}, but JSON export failed: ${error.message}. Export again to complete the pair.`)
             }
         })
     }

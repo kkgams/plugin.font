@@ -20,6 +20,7 @@ function setup(document) {
     let popup = { cancelled: true }
     let failure = null
     let failureMethod = null
+    let failurePath = null
     const runtime = {
         async call(method, options) {
             calls.push([method, options])
@@ -27,7 +28,8 @@ function setup(document) {
         },
         async invoke(method, ...args) {
             calls.push([method, ...args])
-            if (failure !== null && (failureMethod === null || failureMethod === method)) return failure
+            if (failure !== null && (failureMethod === null || failureMethod === method) &&
+                (failurePath === null || args[1] === failurePath)) return failure
             if (method === "fs/fs::stat") return { ok: { size: files.get(args[0]).length } }
             if (method === "fs/fs::read-file") return { ok: files.get(args[0]) }
             if (method === "fs/fs::write-file") { files.set(args[0], [...args[1]]); return { ok: null } }
@@ -45,7 +47,7 @@ function setup(document) {
         customElements: { define() {} }, document,
     })
     const view = new ViewFont()
-    const fields = { path: { value: "fonts/source.ttf" }, "atlas-path": { value: "fonts/atlas.png" } }
+    const fields = { path: { value: "fonts/source.ttf" } }
     Object.assign(view, {
         epoch: 0, pending: null, savedPath: null, renderer: {}, isConnected: true, resource: { $resource: "gams:font/font", id: "res_test" },
         font: { channels: 4, info: { dimensions: { width: 1, height: 1 }, "pixel-format": "rgba8", "atlas-type": "mtsdf" }, pixels: new Uint8Array([4, 5, 6, 0]), metadata: { atlas: { width: 1 }, glyphs: [] } },
@@ -55,7 +57,7 @@ function setup(document) {
         setAttribute(name, value) { this[name] = value },
         async accept(resource, current) { if (current()) this.accepted = resource },
     })
-    return { view, calls, files, fields, select(value) { popup = value }, fail(value, method = null) { failure = value; failureMethod = method } }
+    return { view, calls, files, fields, select(value) { popup = value }, fail(value, method = null, path = null) { failure = value; failureMethod = method; failurePath = path } }
 }
 
 test("open and generation read Project fonts through plugin.fs", async () => {
@@ -145,27 +147,57 @@ test("opening TTF or OTF clears the Artery save destination", async () => {
     }
 })
 
-test("PNG export writes real channel-preserving PNG and updates the linked JSON path", async () => {
-    const { view, files, select, fields } = setup()
-    select({ path: "assets/日本語.png" })
-    await view.export("png")
+test("one export writes linked JSON and a channel-preserving PNG with matching names", async () => {
+    const { view, files, select, calls } = setup()
+    select({ path: "assets/日本語.json" })
+    assert.equal((await view.export()).ok, true)
+    assert.equal(calls.filter(([method]) => method === "ui.popup.open").length, 1)
+    assert.equal(calls[0][1].props.filter, "*.json")
+    assert.equal(calls[0][1].props.defaultName, "font.json")
     const png = Buffer.from(files.get("assets/日本語.png"))
     assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
     const length = png.readUInt32BE(33)
     assert.equal(png.toString("ascii", 37, 41), "IDAT")
     assert.deepEqual([...inflateSync(png.subarray(41, 41 + length))], [0, 4, 5, 6, 0])
-    assert.equal(fields["atlas-path"].value, "assets/日本語.png")
-    select({ path: "metadata/font.font.json" })
-    await view.export("json")
-    const json = JSON.parse(Buffer.from(files.get("metadata/font.font.json")).toString("utf8"))
+    const json = JSON.parse(Buffer.from(files.get("assets/日本語.json")).toString("utf8"))
     assert.equal(json.image, "assets/日本語.png")
     assert.equal(json.format, "gams.font")
     assert.equal(json.version, 1)
     assert.deepEqual(json.glyphs, [])
+    assert.deepEqual([...files.keys()].sort(), ["assets/日本語.json", "assets/日本語.png"])
+    assert.deepEqual(calls.filter(([method]) => method === "fs/fs::rename").map(call => call[2]), ["assets/日本語.png", "assets/日本語.json"])
+    assert.equal(view.savedPath, null)
+})
+
+test("export replaces both destinations and derives each pair without remembered paths", async () => {
+    const { view, files, select } = setup()
+    files.set("font.json", [1])
+    files.set("font.png", [2])
+    select({ path: "font.json" })
+    assert.equal((await view.export()).ok, true)
+    assert.equal(JSON.parse(Buffer.from(files.get("font.json"))).image, "font.png")
+    assert.ok(files.get("font.png").length > 2)
+    select({ path: "fonts/other.font.JSON" })
+    assert.equal((await view.export()).ok, true)
+    assert.equal(JSON.parse(Buffer.from(files.get("fonts/other.font.JSON"))).image, "fonts/other.font.png")
+    assert.equal(files.size, 4)
+})
+
+test("a JSON replacement failure reports the completed PNG and preserves old JSON", async () => {
+    const { view, files, select, fail } = setup()
+    files.set("font.json", [1, 2, 3])
+    select({ path: "font.json" })
+    fail({ err: "rename denied" }, "fs/fs::rename", "font.json")
+    const outcome = await view.export()
+    assert.match(outcome.err, /PNG saved at font\.png, but JSON export failed/)
+    assert.match(outcome.err, /Export again to complete the pair/)
+    assert.deepEqual(files.get("font.json"), [1, 2, 3])
+    assert.ok(files.get("font.png").length > 8)
+    assert.equal(view.lastStatus.intent, "danger")
 })
 
 test("cancel every picker without reads, encoding or writes", async () => {
-    for (const action of [view => view.open(), view => view.save(), view => view.saveAs(), view => view.export("png"), view => view.export("json")]) {
+    for (const action of [view => view.open(), view => view.save(), view => view.saveAs(), view => view.export()]) {
         const { view, calls, files } = setup()
         const outcome = await action(view)
         assert.equal(outcome.cancelled, true)
@@ -177,7 +209,7 @@ test("cancel every picker without reads, encoding or writes", async () => {
 })
 
 test("bad save extensions fail before encoding or writing", async () => {
-    for (const action of [view => view.save(), view => view.saveAs(), view => view.export("png"), view => view.export("json")]) {
+    for (const action of [view => view.save(), view => view.saveAs(), view => view.export()]) {
         const { view, calls, select } = setup()
         select({ path: "bad.txt" })
         assert.ok((await action(view)).err)
@@ -189,7 +221,7 @@ test("filesystem failures report an error, never export success", async () => {
     const { view, select, fail } = setup()
     select({ path: "font.json" })
     fail({ err: "permission denied" })
-    assert.match((await view.export("json")).err, /permission denied/)
+    assert.match((await view.export()).err, /permission denied/)
     assert.equal(view.lastStatus.intent, "danger")
     assert.equal(view.pending, null)
 })
@@ -199,8 +231,8 @@ test("failed rename preserves the previous destination and identifies temporary 
     files.set("font.json", [1, 2, 3])
     select({ path: "font.json" })
     fail({ err: "rename denied" }, "fs/fs::rename")
-    const outcome = await view.export("json")
-    assert.match(outcome.err, /temporary data remains at font\.json\..*\.tmp/)
+    const outcome = await view.export()
+    assert.match(outcome.err, /temporary data remains at font\.png\..*\.tmp/)
     assert.deepEqual(files.get("font.json"), [1, 2, 3])
     assert.equal([...files.keys()].filter(path => path.endsWith(".tmp")).length, 1)
 })
@@ -223,13 +255,13 @@ test("malformed IPC is an invariant failure, not silently swallowed", async () =
     const { view, select, fail } = setup()
     select({ path: "font.json" })
     fail({ unexpected: true })
-    await assert.rejects(view.export("json"), /Malformed filesystem/)
+    await assert.rejects(view.export(), /Malformed filesystem/)
 })
 
 test("a disconnected View cannot write after a pending popup resolves", async () => {
     const { view, calls, select } = setup()
     select({ path: "font.json" })
-    const pending = view.export("json")
+    const pending = view.export()
     view.isConnected = false
     ++view.epoch
     await pending
@@ -262,7 +294,7 @@ test("header separates file and zoom actions with accessible icons and shared to
     assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "view-actions"])
     assert.ok(header.children.every(group => group.attributes.role === "buttongroup"))
     assert.deepEqual(header.children.map(group => group.children.map(button => button.dataset.action)), [
-        ["open", "save", "save-as", "json", "png"], ["zoom-in", "zoom-out", "zoom-fit"],
+        ["open", "save", "save-as", "export"], ["zoom-in", "zoom-out", "zoom-fit"],
     ])
     for (const button of header.querySelectorAll("button")) {
         assert.equal(button.type, "button")
@@ -273,8 +305,8 @@ test("header separates file and zoom actions with accessible icons and shared to
         button.listeners.pointerenter()
     }
     await Promise.resolve()
-    assert.deepEqual(activated, [["open"], ["save"], ["saveAs"], ["export", "json"], ["export", "png"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
-    assert.equal(calls.length, 8)
+    assert.deepEqual(activated, [["open"], ["save"], ["saveAs"], ["export"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
+    assert.equal(calls.length, 7)
     assert.ok(calls.every(([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb"))
 })
 
