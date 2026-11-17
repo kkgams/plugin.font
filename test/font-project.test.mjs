@@ -334,17 +334,17 @@ function headerElement(tag) {
     }
 }
 
-test("header separates file and zoom actions with accessible icons and shared tooltips", async () => {
+test("header orders file, generation and zoom groups with accessible icons and shared tooltips", async () => {
     const { view, calls } = setup({ createElement: headerElement })
     const activated = []
-    for (const method of ["new", "open", "save", "saveAs", "export", "zoomIn", "zoomOut", "zoomFit"]) {
+    for (const method of ["new", "open", "save", "saveAs", "export", "generate", "zoomIn", "zoomOut", "zoomFit"]) {
         view[method] = (...args) => activated.push([method, ...args])
     }
     const header = view.createHeaderControlsElement()
-    assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "view-actions"])
+    assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "tool-actions", "view-actions"])
     assert.ok(header.children.every(group => group.attributes.role === "buttongroup"))
     assert.deepEqual(header.children.map(group => group.children.map(button => button.dataset.action)), [
-        ["new", "open", "save", "save-as", "export"], ["zoom-in", "zoom-out", "zoom-fit"],
+        ["new", "open", "save", "save-as", "export"], ["generate"], ["zoom-in", "zoom-out", "zoom-fit"],
     ])
     for (const button of header.querySelectorAll("button")) {
         assert.equal(button.type, "button")
@@ -355,17 +355,18 @@ test("header separates file and zoom actions with accessible icons and shared to
         button.listeners.pointerenter()
     }
     await Promise.resolve()
-    assert.deepEqual(activated, [["new"], ["open"], ["save"], ["saveAs"], ["export"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
-    assert.equal(calls.length, 8)
+    assert.deepEqual(activated, [["new"], ["open"], ["save"], ["saveAs"], ["export"], ["generate"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
+    assert.equal(calls.length, 9)
     assert.ok(calls.every(([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb"))
 })
 
 test("header actions track empty, loaded and busy font states", () => {
     const { view, fields } = setup({ createElement: headerElement })
     view._headerControlsElement = view.createHeaderControlsElement()
-    const generate = headerElement("button")
-    generate.setAttribute("data-needs-source", "")
-    view.querySelectorAll = () => [generate]
+    const generate = view._headerControlsElement.querySelectorAll("button").find(button => button.dataset.action === "generate")
+    assert.ok(generate)
+    assert.equal(generate.className, "accent")
+    view.querySelectorAll = () => []
     Object.assign(fields, { dimensions: { value: "auto" }, width: {}, height: {} })
     const buttons = view._headerControlsElement.querySelectorAll("button")
     const sync = () => Object.getPrototypeOf(view).syncControls.call(view)

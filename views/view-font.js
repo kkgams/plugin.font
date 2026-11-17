@@ -67,7 +67,6 @@ export class ViewFont extends ViewCanvasBase {
                     <label>Height <input type="number" data-field="height" min="1" step="1" value="512" required ${exact}></label>
                     <label>Edge coloring <select data-field="edge"><option value="simple">Simple</option><option value="ink-trap" selected>Ink trap</option><option value="distance">Distance</option></select></label>
                     <label>Miter limit <input type="number" data-field="miter" min="0" step="any" value="1" required ${exact}></label>
-                    <button type="submit" class="accent" data-action="generate" data-needs-source>Generate</button>
                 </fieldset>
                 <fieldset>
                     <legend>Preview</legend>
@@ -113,6 +112,9 @@ export class ViewFont extends ViewCanvasBase {
                 ["save-as", "Save as", "save_as", () => this.saveAs()],
                 ["export", "Export JSON + PNG", "data_object", () => this.export()],
             ]],
+            ["tool-actions", [
+                ["generate", "Generate atlas", "auto_fix_high", () => this.generate()],
+            ]],
             ["view-actions", [
                 ["zoom-in", "Zoom in", "zoom_in", () => this.zoomIn()],
                 ["zoom-out", "Zoom out", "zoom_out", () => this.zoomOut()],
@@ -127,7 +129,10 @@ export class ViewFont extends ViewCanvasBase {
                 const button = document.createElement("button")
                 button.type = "button"
                 button.dataset.action = action
-                if (action !== "new" && action !== "open") button.setAttribute("data-needs-font", "")
+                if (action === "generate") {
+                    button.setAttribute("data-needs-source", "")
+                    button.className = "accent"
+                } else if (action !== "new" && action !== "open") button.setAttribute("data-needs-font", "")
                 button.setAttribute("aria-label", label)
                 const symbol = document.createElement("i")
                 symbol.setAttribute("aria-hidden", "true")

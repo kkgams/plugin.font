@@ -63,7 +63,8 @@ generation source unchanged.
 **New from font** chooses a Project TTF/OTF and immediately generates an atlas
 using the current generation settings. Success replaces the atlas and clears
 the old Artery save path; cancellation or failure keeps the current document.
-**Generate** reuses that source after settings changes. **Open Artery font**
+**Generate** reuses that source after settings changes; its header tool group
+sits between the I/O and zoom groups. **Open Artery font**
 restores a saved atlas and clears the generation source: Artery does not embed
 its original TTF/OTF, so Generate is disabled until you use New again.
 No manually entered Project font path is needed.

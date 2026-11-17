@@ -60,7 +60,8 @@ Artery file, asking for a destination on first save. **Save as** always asks for
 a destination and makes it the current save path after success. **New from font**
 chooses a Project TTF/OTF and generates an atlas with the current settings,
 clearing the previous save destination only after success. **Generate** reuses
-that source after settings changes. **Open Artery font** restores a saved atlas;
+that source after settings changes, from its header tool group between I/O and
+zoom. **Open Artery font** restores a saved atlas;
 Artery has no TTF/OTF source, so Generate is disabled until you use New again.
 Saving never changes the generation source. **Export JSON + PNG** uses one Files
 popup. A separate viewport group provides
