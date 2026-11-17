@@ -47,7 +47,7 @@ function setup(document) {
     const view = new ViewFont()
     const fields = { path: { value: "fonts/source.ttf" }, "atlas-path": { value: "fonts/atlas.png" } }
     Object.assign(view, {
-        epoch: 0, pending: null, renderer: {}, isConnected: true, resource: { $resource: "gams:font/font", id: "res_test" },
+        epoch: 0, pending: null, savedPath: null, renderer: {}, isConnected: true, resource: { $resource: "gams:font/font", id: "res_test" },
         font: { channels: 4, info: { dimensions: { width: 1, height: 1 }, "pixel-format": "rgba8", "atlas-type": "mtsdf" }, pixels: new Uint8Array([4, 5, 6, 0]), metadata: { atlas: { width: 1 }, glyphs: [] } },
         field: name => { assert.ok(fields[name], name); return fields[name] },
         status(message, intent) { this.lastStatus = { message, intent } },
@@ -78,10 +78,71 @@ test("Artery open decodes filesystem bytes and save encodes then replaces via pl
     await view.open({ path: "font.arfont" })
     assert.ok(calls.some(([method]) => method === "font/font::decode"))
     select({ path: "saved.arfont" })
-    await view.save()
+    await view.saveAs()
+    assert.equal(view.savedPath, "saved.arfont")
     assert.deepEqual(files.get("saved.arfont"), [0, 255, 128])
     assert.equal(calls.find(([method]) => method === "ui.popup.open")[1].props.mode, "saver")
     assert.equal([...files.keys()].filter(path => path.endsWith(".tmp")).length, 0)
+})
+
+test("Save updates an opened Artery file without a picker", async () => {
+    const { view, files, calls } = setup()
+    files.set("fonts/current.arfont", [1, 2, 3])
+    await view.open("fonts/current.arfont")
+    assert.equal(view.savedPath, "fonts/current.arfont")
+    await view.save()
+    assert.deepEqual(files.get("fonts/current.arfont"), [0, 255, 128])
+    assert.ok(!calls.some(([method]) => method === "ui.popup.open"))
+})
+
+test("first Save chooses Artery and subsequent Save reuses the destination", async () => {
+    const { view, files, calls, select } = setup()
+    select({ path: "fonts/new.arfont" })
+    await view.save()
+    assert.equal(view.savedPath, "fonts/new.arfont")
+    assert.equal(calls[0][1].props.filter, "*.arfont")
+    assert.equal(calls[0][1].props.defaultName, "font.arfont")
+    select({ cancelled: true })
+    await view.save()
+    assert.deepEqual(files.get("fonts/new.arfont"), [0, 255, 128])
+    assert.equal(calls.filter(([method]) => method === "ui.popup.open").length, 1)
+})
+
+test("Save as changes the destination without changing the generation source", async () => {
+    const { view, files, fields, calls, select } = setup()
+    view.savedPath = "fonts/old.arfont"
+    files.set(view.savedPath, [7])
+    select({ path: "fonts/copy.arfont" })
+    await view.saveAs()
+    assert.equal(calls[0][1].props.defaultName, "old.arfont")
+    assert.equal(view.savedPath, "fonts/copy.arfont")
+    assert.equal(fields.path.value, "fonts/source.ttf")
+    assert.deepEqual(files.get("fonts/old.arfont"), [7])
+    assert.deepEqual(files.get("fonts/copy.arfont"), [0, 255, 128])
+})
+
+test("cancelled or failed Save as preserves the current destination", async () => {
+    const { view, select, fail } = setup()
+    view.savedPath = "original.arfont"
+    await view.saveAs()
+    assert.equal(view.savedPath, "original.arfont")
+    select({ path: "bad.txt" })
+    assert.ok((await view.saveAs()).err)
+    assert.equal(view.savedPath, "original.arfont")
+    select({ path: "copy.arfont" })
+    fail({ err: "rename denied" }, "fs/fs::rename")
+    assert.ok((await view.saveAs()).err)
+    assert.equal(view.savedPath, "original.arfont")
+})
+
+test("opening TTF or OTF clears the Artery save destination", async () => {
+    for (const extension of ["ttf", "otf"]) {
+        const { view, files } = setup()
+        view.savedPath = "previous.arfont"
+        files.set(`source.${extension}`, [1])
+        await view.open(`source.${extension}`)
+        assert.equal(view.savedPath, null)
+    }
 })
 
 test("PNG export writes real channel-preserving PNG and updates the linked JSON path", async () => {
@@ -104,7 +165,7 @@ test("PNG export writes real channel-preserving PNG and updates the linked JSON 
 })
 
 test("cancel every picker without reads, encoding or writes", async () => {
-    for (const action of [view => view.open(), view => view.save(), view => view.export("png"), view => view.export("json")]) {
+    for (const action of [view => view.open(), view => view.save(), view => view.saveAs(), view => view.export("png"), view => view.export("json")]) {
         const { view, calls, files } = setup()
         const outcome = await action(view)
         assert.equal(outcome.cancelled, true)
@@ -116,7 +177,7 @@ test("cancel every picker without reads, encoding or writes", async () => {
 })
 
 test("bad save extensions fail before encoding or writing", async () => {
-    for (const action of [view => view.save(), view => view.export("png"), view => view.export("json")]) {
+    for (const action of [view => view.save(), view => view.saveAs(), view => view.export("png"), view => view.export("json")]) {
         const { view, calls, select } = setup()
         select({ path: "bad.txt" })
         assert.ok((await action(view)).err)
@@ -194,14 +255,14 @@ function headerElement(tag) {
 test("header separates file and zoom actions with accessible icons and shared tooltips", async () => {
     const { view, calls } = setup({ createElement: headerElement })
     const activated = []
-    for (const method of ["open", "save", "export", "zoomIn", "zoomOut", "zoomFit"]) {
+    for (const method of ["open", "save", "saveAs", "export", "zoomIn", "zoomOut", "zoomFit"]) {
         view[method] = (...args) => activated.push([method, ...args])
     }
     const header = view.createHeaderControlsElement()
     assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "view-actions"])
     assert.ok(header.children.every(group => group.attributes.role === "buttongroup"))
     assert.deepEqual(header.children.map(group => group.children.map(button => button.dataset.action)), [
-        ["open", "save", "json", "png"], ["zoom-in", "zoom-out", "zoom-fit"],
+        ["open", "save", "save-as", "json", "png"], ["zoom-in", "zoom-out", "zoom-fit"],
     ])
     for (const button of header.querySelectorAll("button")) {
         assert.equal(button.type, "button")
@@ -212,8 +273,8 @@ test("header separates file and zoom actions with accessible icons and shared to
         button.listeners.pointerenter()
     }
     await Promise.resolve()
-    assert.deepEqual(activated, [["open"], ["save"], ["export", "json"], ["export", "png"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
-    assert.equal(calls.length, 7)
+    assert.deepEqual(activated, [["open"], ["save"], ["saveAs"], ["export", "json"], ["export", "png"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
+    assert.equal(calls.length, 8)
     assert.ok(calls.every(([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb"))
 })
 

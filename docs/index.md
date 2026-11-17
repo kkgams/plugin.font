@@ -55,9 +55,14 @@ errors rather than discarding data.
 
 ## Linked JSON + PNG export
 
-The header's **Open font**, **Save Artery font**, **Export linked JSON** and
-**Export atlas PNG** controls use `view-files` chooser/saver popups through
-`ui.popup`. All View file reads and writes go through `plugin.fs`, without native
+Artery (`.arfont`) is the native View save format. **Save** writes to the current
+Artery path, or opens a saver on first save. **Save as** always opens a saver;
+only a successful write changes the current save path. Opening TTF/OTF clears
+the save path. Saving keeps the generation source unchanged.
+
+The header's **Open font**, **Save** (when a path is needed), **Save as**,
+**Export linked JSON** and **Export atlas PNG** controls use `view-files`
+chooser/saver popups through `ui.popup`. All View file reads and writes go through `plugin.fs`, without native
 browser upload/download dialogs. Open a Project TTF/OTF, then press **Generate**;
 opening an Artery font restores its atlas directly.
 

@@ -49,6 +49,7 @@ export class ViewFont extends ViewCanvasBase {
         this.epoch = (this.epoch === undefined ? 0 : this.epoch) + 1
         this.resource = null
         this.font = null
+        this.savedPath = null
         this.pending = null
         this.renderer = null
         this.innerHTML = `
@@ -108,7 +109,8 @@ export class ViewFont extends ViewCanvasBase {
         const groups = [
             ["file-actions", [
                 ["open", "Open font", "folder_open", () => this.open()],
-                ["save", "Save Artery font", "save", () => this.save()],
+                ["save", "Save", "save", () => this.save()],
+                ["save-as", "Save as", "save_as", () => this.saveAs()],
                 ["json", "Export linked JSON", "data_object", () => this.export("json")],
                 ["png", "Export atlas PNG", "image", () => this.export("png")],
             ]],
@@ -266,6 +268,7 @@ export class ViewFont extends ViewCanvasBase {
             if (!current()) return
             if (/\.arfont$/i.test(path)) await this.accept(await result("decode", bytes), current)
             if (current()) {
+                this.savedPath = /\.arfont$/i.test(path) ? path : null
                 this.field("path").value = path
                 this.setAttribute("data-source", path)
             }
@@ -308,16 +311,24 @@ export class ViewFont extends ViewCanvasBase {
         }
     }
 
-    save() {
-        return this.operation("Save Artery font", async current => {
+    saveAs() {
+        return this.save({ saveAs: true })
+    }
+
+    save({ saveAs = false } = {}) {
+        return this.operation(saveAs ? "Save Artery font as" : "Save Artery font", async current => {
             if (this.resource === null) throw new UserError("Generate or open a font first")
-            const path = await this.choose("saver", "Save Artery font", "*.arfont", "font.arfont")
+            const path = saveAs || this.savedPath === null
+                ? await this.choose("saver", "Save Artery font", "*.arfont", this.savedPath === null ? "font.arfont" : this.savedPath.split("/").pop())
+                : this.savedPath
             if (path === null) return false
             if (!current()) return
             if (!/\.arfont$/i.test(path)) throw new UserError("Save path must end in .arfont")
             const bytes = await result("encode", this.resource)
             invariant(Array.isArray(bytes), "Expected encoded Artery bytes")
-            if (current()) await writeFile(path, bytes)
+            if (!current()) return
+            await writeFile(path, bytes)
+            if (current()) this.savedPath = path
         })
     }
 

@@ -55,8 +55,12 @@ latest Host. No ownership marker is required for cleanup.
 
 ## Linked font export
 
-Header controls open Project TTF/OTF/Artery fonts, save Artery, and export PNG
-or linked JSON using the Files popup. A separate viewport group provides
+Artery (`.arfont`) is the native save format. **Save** updates the current
+Artery file, asking for a destination on first save. **Save as** always asks for
+a destination and makes it the current save path after success. Opening a
+TTF/OTF clears that destination; saving never changes the generation source.
+Header controls also open Project TTF/OTF/Artery fonts and export PNG or linked
+JSON using the Files popup. A separate viewport group provides
 **Zoom in**, **Zoom out**, and **Fit preview**, enabled once an atlas is loaded.
 Choose a TTF/OTF and press **Generate**;
 opening Artery restores its atlas directly. All paths are inside the Project.
