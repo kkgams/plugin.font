@@ -14,7 +14,7 @@ const source = await readFile(new URL("../views/view-font.js", import.meta.url),
 
 // Exercise the actual View operations with controlled IPC responses, not a second
 // implementation. No DOM rendering is needed for this filesystem/lifecycle seam.
-function setup() {
+function setup(document) {
     const calls = []
     const files = new Map()
     let popup = { cancelled: true }
@@ -42,7 +42,7 @@ function setup() {
     const ViewFont = vm.runInNewContext(source.replace(/^import .*\n/gm, "").replace("export class ViewFont", "class ViewFont") + "\nViewFont", {
         runtime, unwrap: value => { if (Object.hasOwn(value, "err")) throw new Error(String(value.err)); return value.ok },
         ViewCanvasBase: class {}, ...renderer, ...exports, TextEncoder, crypto, RangeError,
-        customElements: { define() {} },
+        customElements: { define() {} }, document,
     })
     const view = new ViewFont()
     const fields = { path: { value: "fonts/source.ttf" }, "atlas-path": { value: "fonts/atlas.png" } }
@@ -173,6 +173,69 @@ test("a disconnected View cannot write after a pending popup resolves", async ()
     ++view.epoch
     await pending
     assert.equal(calls.length, 1)
+})
+
+// Only the DOM surface used to construct header controls; no Host/canvas emulation.
+function headerElement(tag) {
+    return {
+        tag, dataset: {}, attributes: {}, children: [], listeners: {},
+        setAttribute(name, value) { this.attributes[name] = value },
+        hasAttribute(name) { return Object.hasOwn(this.attributes, name) },
+        append(child) { this.children.push(child) },
+        addEventListener(type, handler) { this.listeners[type] = handler },
+        getBoundingClientRect() { return { x: 10, y: 20, width: 30, height: 30 } },
+        querySelectorAll(selector) {
+            assert.equal(selector, "button")
+            return this.children.flatMap(child => child.tag === "button" ? [child] : child.querySelectorAll(selector))
+        },
+    }
+}
+
+test("header separates file and zoom actions with accessible icons and shared tooltips", async () => {
+    const { view, calls } = setup({ createElement: headerElement })
+    const activated = []
+    for (const method of ["open", "save", "export", "zoomIn", "zoomOut", "zoomFit"]) {
+        view[method] = (...args) => activated.push([method, ...args])
+    }
+    const header = view.createHeaderControlsElement()
+    assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "view-actions"])
+    assert.ok(header.children.every(group => group.attributes.role === "buttongroup"))
+    assert.deepEqual(header.children.map(group => group.children.map(button => button.dataset.action)), [
+        ["open", "save", "json", "png"], ["zoom-in", "zoom-out", "zoom-fit"],
+    ])
+    for (const button of header.querySelectorAll("button")) {
+        assert.equal(button.type, "button")
+        assert.ok(button.attributes["aria-label"])
+        assert.equal(button.children[0].attributes["aria-hidden"], "true")
+        assert.ok(button.children[0].textContent)
+        button.listeners.click()
+        button.listeners.pointerenter()
+    }
+    await Promise.resolve()
+    assert.deepEqual(activated, [["open"], ["save"], ["export", "json"], ["export", "png"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
+    assert.equal(calls.length, 7)
+    assert.ok(calls.every(([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb"))
+})
+
+test("header actions track empty, loaded and busy font states", () => {
+    const { view, fields } = setup({ createElement: headerElement })
+    view._headerControlsElement = view.createHeaderControlsElement()
+    view.querySelectorAll = () => []
+    Object.assign(fields, { dimensions: { value: "auto" }, width: {}, height: {} })
+    const buttons = view._headerControlsElement.querySelectorAll("button")
+    const sync = () => Object.getPrototypeOf(view).syncControls.call(view)
+    view.resource = null
+    sync()
+    assert.deepEqual(buttons.filter(button => !button.disabled).map(button => button.dataset.action), ["open"])
+    view.resource = { id: "loaded" }
+    sync()
+    assert.ok(buttons.every(button => !button.disabled))
+    view.pending = Promise.resolve()
+    sync()
+    assert.ok(buttons.every(button => button.disabled))
+    view.pending = null
+    sync()
+    assert.ok(buttons.every(button => !button.disabled))
 })
 
 test("the Project registers all Files popup dependencies from one pinned archive", async () => {

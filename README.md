@@ -56,7 +56,9 @@ latest Host. No ownership marker is required for cleanup.
 ## Linked font export
 
 Header controls open Project TTF/OTF/Artery fonts, save Artery, and export PNG
-or linked JSON using the Files popup. Choose a TTF/OTF and press **Generate**;
+or linked JSON using the Files popup. A separate viewport group provides
+**Zoom in**, **Zoom out**, and **Fit preview**, enabled once an atlas is loaded.
+Choose a TTF/OTF and press **Generate**;
 opening Artery restores its atlas directly. All paths are inside the Project.
 Saves replace existing destinations via temporary-file write and rename; parent
 directories must already exist (create them in the Files popup).

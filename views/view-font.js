@@ -105,35 +105,43 @@ export class ViewFont extends ViewCanvasBase {
 
     createHeaderControlsElement() {
         const root = document.createElement("div")
-        const group = document.createElement("div")
-        group.setAttribute("role", "buttongroup")
-        group.dataset.element = "file-actions"
-        for (const [action, label, icon] of [
-            ["open", "Open font", "folder_open"], ["save", "Save Artery font", "save"],
-            ["json", "Export linked JSON", "data_object"], ["png", "Export atlas PNG", "image"],
-        ]) {
-            const button = document.createElement("button")
-            button.type = "button"
-            button.dataset.action = action
-            if (action !== "open") button.setAttribute("data-needs-font", "")
-            button.setAttribute("aria-label", label)
-            const symbol = document.createElement("i")
-            symbol.setAttribute("aria-hidden", "true")
-            symbol.textContent = icon
-            button.append(symbol)
-            button.addEventListener("pointerenter", () => {
-                const rect = button.getBoundingClientRect()
-                void runtime.call("ui.tooltip.tip", { content: label,
-                    anchor: { kind: "aabb", x: rect.x, y: rect.y, width: rect.width, height: rect.height } }).then(unwrap)
-            })
-            button.addEventListener("click", () => {
-                if (action === "open") void this.open()
-                else if (action === "save") void this.save()
-                else void this.export(action)
-            })
-            group.append(button)
+        const groups = [
+            ["file-actions", [
+                ["open", "Open font", "folder_open", () => this.open()],
+                ["save", "Save Artery font", "save", () => this.save()],
+                ["json", "Export linked JSON", "data_object", () => this.export("json")],
+                ["png", "Export atlas PNG", "image", () => this.export("png")],
+            ]],
+            ["view-actions", [
+                ["zoom-in", "Zoom in", "zoom_in", () => this.zoomIn()],
+                ["zoom-out", "Zoom out", "zoom_out", () => this.zoomOut()],
+                ["zoom-fit", "Fit preview", "fit_screen", () => this.zoomFit()],
+            ]],
+        ]
+        for (const [name, actions] of groups) {
+            const group = document.createElement("div")
+            group.setAttribute("role", "buttongroup")
+            group.dataset.element = name
+            for (const [action, label, icon, run] of actions) {
+                const button = document.createElement("button")
+                button.type = "button"
+                button.dataset.action = action
+                if (action !== "open") button.setAttribute("data-needs-font", "")
+                button.setAttribute("aria-label", label)
+                const symbol = document.createElement("i")
+                symbol.setAttribute("aria-hidden", "true")
+                symbol.textContent = icon
+                button.append(symbol)
+                button.addEventListener("pointerenter", () => {
+                    const rect = button.getBoundingClientRect()
+                    void runtime.call("ui.tooltip.tip", { content: label,
+                        anchor: { kind: "aabb", x: rect.x, y: rect.y, width: rect.width, height: rect.height } }).then(unwrap)
+                })
+                button.addEventListener("click", () => void run())
+                group.append(button)
+            }
+            root.append(group)
         }
-        root.append(group)
         return root
     }
 
