@@ -18,8 +18,16 @@ library sources are local under `vendor/`; no sibling checkouts, npm packages,
 submodules or system font libraries are required. Initial tool/docs downloads
 need network access.
 
+Run `make compile_commands.json` in the pinned shell before using clangd. `.clangd`
+selects the canonical WASI build database; metadata and clangd caches stay under
+`build.nosync/`. Clangd 21 does not discover SDK 33's target-specific libc++
+headers; use clangd compatible with SDK 33 (Clang 22). A clangd wrapper that injects
+host libc++ headers also causes false cross-target errors; use a cross-target-safe
+clangd configuration.
+
 | Command | Purpose |
 | --- | --- |
+| `make compile_commands.json` | Configure C/C++ editor metadata and required headers without compiling the component. |
 | `make build` | Compile the WASI Preview 2 component and bundle the View. |
 | `make check` | Check component/WIT and JavaScript syntax. |
 | `make test` | Native CTest, renderer tests and real Wasmtime component tests. |

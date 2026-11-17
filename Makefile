@@ -17,6 +17,8 @@ WIKI_REPOSITORY := https://github.com/justgook/wiki
 WIKI_MAKEFILE := build.nosync/wiki-$(WIKI_VERSION).mk
 WIKI_ENGINE := $(abspath build.nosync/wiki-$(WIKI_VERSION))
 BINDINGS := build.nosync/bindings
+BINDING_OUTPUTS := $(BINDINGS)/stamp $(BINDINGS)/font_plugin.h $(BINDINGS)/font_plugin.c $(BINDINGS)/font_plugin_component_type.o
+CMAKE_OUTPUTS := build.nosync/wasm/CMakeCache.txt build.nosync/wasm/compile_commands.json
 WIT_SOURCES := $(shell find wit -name '*.wit' -type f | sort)
 WIT_DIRS := $(shell find wit -type d)
 ENGINE_SOURCES := $(shell find src vendor -type f | sort)
@@ -27,23 +29,27 @@ export TMPDIR := $(CURDIR)/build.nosync/tmp
 export CARGO_TARGET_DIR := $(CURDIR)/build.nosync/cargo-target
 export PYTHONDONTWRITEBYTECODE := 1
 
-.PHONY: build build-component build-view package check test test-backend test-view test-component test-host open clean docs serve-docs validate-docs
+.PHONY: compile_commands.json build build-component build-view package check test test-backend test-view test-component test-host open clean docs serve-docs validate-docs
 build: build-component build-view
 build-component: build.nosync/plugin.font.wasm
 build-view: build.nosync/views/view-font.js
+compile_commands.json: $(CMAKE_OUTPUTS)
 package: build.nosync/SHA256SUMS build.nosync/plugin.font.zip
 
 build.nosync/tmp:
 	mkdir -p "$@"
 
-$(BINDINGS)/stamp: $(WIT_SOURCES) $(WIT_DIRS) Makefile flake.nix flake.lock | build.nosync/tmp
+$(BINDING_OUTPUTS) &: $(WIT_SOURCES) $(WIT_DIRS) Makefile flake.nix flake.lock | build.nosync/tmp
 	mkdir -p $(BINDINGS)
 	$(WIT_BINDGEN) c wit --world font-plugin --out-dir $(BINDINGS)
-	touch $@
+	touch $(BINDINGS)/stamp
 
-build.nosync/plugin.font.wasm: $(ENGINE_SOURCES) $(ENGINE_DIRS) $(BINDINGS)/stamp CMakeLists.txt Makefile | build.nosync/tmp
+$(CMAKE_OUTPUTS) &: CMakeLists.txt Makefile flake.nix flake.lock $(BINDING_OUTPUTS) | build.nosync/tmp
 	@test -n "$$WASI_SDK_PATH" || { echo 'Use nix develop for WASI_SDK_PATH' >&2; exit 1; }
 	$(CMAKE) -S . -B build.nosync/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release -DGAMS_FONT_COMPONENT=ON -DCMAKE_TOOLCHAIN_FILE="$$WASI_SDK_PATH/share/cmake/wasi-sdk-p2.cmake"
+	@touch $(CMAKE_OUTPUTS)
+
+build.nosync/plugin.font.wasm: $(ENGINE_SOURCES) $(ENGINE_DIRS) $(BINDING_OUTPUTS) $(CMAKE_OUTPUTS)
 	$(CMAKE) --build build.nosync/wasm --parallel $(JOBS)
 	$(WASM_TOOLS) validate $@
 

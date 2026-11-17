@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(gams-font LANGUAGES C CXX)
+if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+  # Export the SDK default explicitly so clangd uses the same headers.
+  set(CMAKE_SYSROOT "${WASI_SDK_PREFIX}/share/wasi-sysroot")
+endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
