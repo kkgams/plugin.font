@@ -47,8 +47,10 @@ This Project requires GAMS 3.2.0 or newer for native `$file` configuration
 resolution. An older cached Host can report `Unit source must be a non-empty
 string`. To explicitly replace it while preserving the old app and notices,
 move `tools/gams.app` and its accompanying `tools/gams-release-notices` outside
-those paths, then run `make open`. The downloader installs pinned GAMS 3.2.0
-only when the app is absent.
+those paths, then run `make open`. The downloader installs the latest released GAMS
+only when the app is absent. `make clean` removes a Host downloaded by this
+Makefile (identified by its ownership marker), so `make clean && make open`
+refreshes managed downloads; it preserves supplied or unmarked apps.
 
 ## Linked font export
 
