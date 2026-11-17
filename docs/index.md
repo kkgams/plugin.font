@@ -7,7 +7,7 @@ status: reference
 
 Font-atlas backend and View for [GAMS](https://github.com/kkgams/gams).
 Generate SDF, PSDF, MSDF and MTSDF atlases, preview atlas/sample text, and export
-Artery, metadata JSON and channel-preserving PNG.
+Artery, linked JSON and channel-preserving PNG.
 
 | Item | Source / output | Screenshot |
 | --- | --- | --- |
@@ -52,6 +52,60 @@ Artery decoding accepts one Unicode variant and one raw 8-bit image only.
 Unsupported encodings, multiple variants/images, invalid fonts/configuration,
 missing glyphs, oversized atlases and filesystem failures return structured
 errors rather than discarding data.
+
+## Linked JSON + PNG export
+
+Set **Atlas Project path** (default `fonts/font.png`), then download both
+**linked .font.json** and **atlas PNG** using the same path. Browser downloads
+are named from the PNG basename: `font.png` and `font.font.json`. Place the PNG
+at that path inside your Project; downloading does not write Project files or
+create directories. The JSON can live anywhere in the Project: `image` is
+relative to the Project root, **not** the JSON file's directory. Use a nonempty
+`/`-separated PNG path, without leading `/`, empty/`.`/`..` segments, backslashes,
+URL syntax, control characters or surrounding whitespace.
+
+The UTF-8 JSON object retains the component's complete `atlas`, `metrics`,
+`glyphs` and `kerning` values and adds exactly these contract fields:
+
+```json
+{
+  "format": "gams.font",
+  "version": 1,
+  "image": "fonts/font.png"
+}
+```
+
+These are additional fields, not a complete font document. The component's
+`metadata-json` export remains raw metadata without these fields; its WIT and
+Artery encoding/decoding are unchanged.
+
+| Field | Meaning / units |
+| --- | --- |
+| `atlas.type` | `sdf`, `psdf`, `msdf` or `mtsdf`. |
+| `atlas.width`, `atlas.height` | PNG dimensions in pixels. |
+| `atlas.size` | Atlas generation scale, pixels per em. |
+| `atlas.distanceRange` | Total encoded distance span in atlas pixels; the edge is at channel value 0.5. |
+| `atlas.distanceRangeMiddle` | Distance-span midpoint in atlas pixels; currently always 0. |
+| `atlas.yOrigin` | Always `bottom`; retained even though PNG rows are top-down. |
+| `metrics` | `emSize`, `lineHeight`, `ascender`, `descender`, `underlineY`, `underlineThickness`; normalized em units (`emSize` is 1 for generated fonts). |
+| `glyphs[].unicode` | Unicode scalar value, not a UTF-16 index. |
+| `glyphs[].advance` | Horizontal pen advance in em. |
+| `glyphs[].planeBounds` | `left`, `bottom`, `right`, `top` in em relative to pen/baseline; positive Y points up. |
+| `glyphs[].atlasBounds` | Same four edges in atlas pixels, measured from the bottom-left; values may be fractional. |
+| `kerning[]` | `unicode1`, `unicode2` identify a pair; `advance` is an additive horizontal adjustment in em before the second glyph. |
+
+Glyphs without drawable bounds (such as spaces) retain their advance and have
+no quad. Scale plane bounds, advances, kerning and line height by the desired
+text size in pixels per em; do not use atlas rectangle sizes for text layout.
+For a top-left-origin PNG rectangle use `x = left`, `y = atlas.height - top`,
+`width = right - left`, `height = top - bottom` from `atlasBounds`. Do not flip
+the metadata or the PNG a second time.
+
+PNG output is top-down, unsigned 8-bit RGBA without gamma conversion or alpha
+premultiplication. SDF/PSDF replicate R into RGB with opaque alpha; MSDF keeps
+RGB with opaque alpha; MTSDF keeps RGB plus its true-distance alpha, including
+RGB samples where alpha is zero. Treat these as linear distance data, not sRGB
+color or ordinary transparency; MSDF/MTSDF fill uses the median RGB channel.
 
 ## Local Project
 

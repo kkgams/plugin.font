@@ -1,6 +1,7 @@
 import { runtime, unwrap } from "/core/runtime.js"
 import { ViewCanvasBase } from "/util/view-canvas-base.js"
 import { FontRenderer, atlasPng, codepoints, invariant, validateFont } from "./font-renderer.js"
+import { linkedFontExport } from "./font-export.js"
 
 class UserError extends Error {}
 const exact = 'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
@@ -75,7 +76,8 @@ export class ViewFont extends ViewCanvasBase {
                     <label>Project save path <input type="text" data-field="save-path" value="font.arfont" ${exact}></label>
                     <button type="button" data-action="save" data-needs-font>Save project .arfont</button>
                     <button type="button" data-action="arfont" data-needs-font>Download .arfont</button>
-                    <button type="button" data-action="json" data-needs-font>Download JSON</button>
+                    <label>Atlas Project path <input type="text" data-field="atlas-path" value="fonts/font.png" ${exact}></label>
+                    <button type="button" data-action="json" data-needs-font>Download linked .font.json</button>
                     <button type="button" data-action="png" data-needs-font>Download atlas PNG</button>
                 </fieldset>
                 <table><caption>Atlas information</caption><tbody data-element="info"></tbody></table>
@@ -285,12 +287,17 @@ export class ViewFont extends ViewCanvasBase {
                 const bytes = await result("encode", this.resource)
                 invariant(Array.isArray(bytes), "Expected encoded Artery bytes")
                 if (current()) download(new Blob([new Uint8Array(bytes)], { type: "application/octet-stream" }), "font.arfont")
-            } else if (format === "json") {
-                download(new Blob([this.font.metadataJson], { type: "application/json" }), "font.json")
             } else {
-                invariant(format === "png", "Unknown font export format")
-                const bytes = await atlasPng(this.font)
-                if (current()) download(new Blob([bytes], { type: "image/png" }), "font.png")
+                invariant(format === "json" || format === "png", "Unknown font export format")
+                let linked
+                try { linked = linkedFontExport(this.font.metadata, this.field("atlas-path").value) }
+                catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
+                if (format === "json") {
+                    download(new Blob([JSON.stringify(linked.document, null, 2) + "\n"], { type: "application/json" }), linked.jsonFilename)
+                } else {
+                    const bytes = await atlasPng(this.font)
+                    if (current()) download(new Blob([bytes], { type: "image/png" }), linked.imageFilename)
+                }
             }
         })
     }

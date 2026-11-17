@@ -2,7 +2,7 @@
 
 Font-atlas backend and View for [GAMS](https://github.com/kkgams/gams).
 Generate SDF, PSDF, MSDF and MTSDF atlases; preview text and export Artery,
-metadata JSON and channel-preserving PNG. Artery support accepts one Unicode
+linked JSON and channel-preserving PNG. Artery support accepts one Unicode
 variant and one raw unsigned 8-bit image; unsupported layouts are rejected.
 
 | Item | Source / output | Screenshot | License / original work |
@@ -40,6 +40,19 @@ File operations use native WASI filesystem preopens, not `plugin.fs`.
 when absent, preserving notices without bypassing Gatekeeper. The Host installs
 pinned supporting Units from `gams.json`; supplied tools and Units are not clean
 outputs. Native CLI tests do not establish GUI compatibility.
+
+## Linked font export
+
+The View exports `gams.font` version-1 JSON: existing `atlas`, `metrics`, `glyphs`
+and `kerning` plus `format: "gams.font"`, `version: 1` and `image`, a PNG path
+relative to the Project root (not the JSON directory). **Atlas Project path**
+defaults to `fonts/font.png`; download both exports with the same setting, then
+place the PNG there. Downloads use `font.png` and `font.font.json` basenames.
+PNG rows are top-down; metadata atlas bounds remain bottom-origin pixels.
+Plane bounds, advances, kerning and metrics use em; atlas size uses pixels/em.
+See [the exact export contract](docs/index.md#linked-json--png-export) for units,
+coordinate conversion and distance-channel handling. Raw component metadata,
+WIT and Artery exports are unchanged.
 
 This software is based in part on the work of the FreeType Team.
 Portions of this software are copyright © 2025 The FreeType Project (www.freetype.org). All rights reserved.
