@@ -55,12 +55,21 @@ errors rather than discarding data.
 
 ## Linked JSON + PNG export
 
-Set **Atlas Project path** (default `fonts/font.png`), then download both
-**linked .font.json** and **atlas PNG** using the same path. Browser downloads
-are named from the PNG basename: `font.png` and `font.font.json`. Place the PNG
-at that path inside your Project; downloading does not write Project files or
-create directories. The JSON can live anywhere in the Project: `image` is
-relative to the Project root, **not** the JSON file's directory. Use a nonempty
+The header's **Open font**, **Save Artery font**, **Export linked JSON** and
+**Export atlas PNG** controls use `view-files` chooser/saver popups through
+`ui.popup`. All View file reads and writes go through `plugin.fs`, without native
+browser upload/download dialogs. Open a Project TTF/OTF, then press **Generate**;
+opening an Artery font restores its atlas directly.
+
+Export **atlas PNG first**. A successful save updates **Atlas Project path**
+(initially `font.png`) to the chosen Project path. Then export **linked JSON**;
+the suggested basename follows the PNG (`font.font.json` for `font.png`).
+The JSON can live anywhere in the Project: `image` is relative to the Project
+root, **not** the JSON file's directory. If you move/re-export the PNG, export
+JSON again to update its reference. Each save writes a temporary sibling file
+then renames it over the destination; an existing destination is replaced.
+Parent directories must already exist; the Files popup can create folders.
+Cancelling a picker does not write files. Use a nonempty
 `/`-separated PNG path, without leading `/`, empty/`.`/`..` segments, backslashes,
 URL syntax, control characters or surrounding whitespace.
 
@@ -113,5 +122,9 @@ color or ordinary transparency; MSDF/MTSDF fill uses the median RGB channel.
 opens its `gams.json`. On macOS Apple Silicon it downloads the released Host
 only when absent and retains accompanying notices without bypassing Gatekeeper.
 Supporting Units are pinned and installed by the Host into `gams_modules/`.
+The Project registers `view-files`, `files-rename` (including folder creation)
+and `files-default` from the same released `view.files` archive. Other Projects
+hosting this View must register those Views and provide `plugin.fs`, `ui.popup`,
+`ui.toast` and `ui.tooltip` as well.
 Rebuild/reopen after component changes; there is no component hot reload.
 CLI tests do not exercise the native GUI.

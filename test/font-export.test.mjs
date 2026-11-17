@@ -22,7 +22,7 @@ test("linked JSON adds only its versioned contract and preserves raw metadata", 
     assert.deepEqual(JSON.parse(JSON.stringify(linked.document)).glyphs, original.glyphs)
 })
 
-test("download basenames follow the Project PNG path, including nested and Unicode names", () => {
+test("suggested export basenames follow the Project PNG path, including nested and Unicode names", () => {
     for (const [path, png, json] of [
         ["font.png", "font.png", "font.font.json"],
         ["assets/fonts/日本語 regular.PNG", "日本語 regular.PNG", "日本語 regular.font.json"],
@@ -35,7 +35,7 @@ test("download basenames follow the Project PNG path, including nested and Unico
     }
 })
 
-test("invalid or non-Project PNG paths are rejected before either download", () => {
+test("invalid or non-Project PNG paths are rejected before either export", () => {
     for (const path of [null, undefined, 7, "", "font.jpg", ".png", "/font.png", "//host/font.png", "../font.png", "fonts/../font.png", "./font.png", "fonts//font.png", "fonts/./font.png", "fonts\\font.png", "C:/font.png", "https://host/font.png", "font.png?raw", "font.png#atlas", " font.png", "font.png ", "fonts/\u0000font.png", "fonts/\nfont.png"]) {
         assert.throws(() => linkedFontExport({}, path), RangeError, String(path))
     }

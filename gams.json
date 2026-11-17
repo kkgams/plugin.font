@@ -72,6 +72,37 @@
       }
     },
     "views": {
+      "view-files": {
+        "url": {
+          "$file": {
+            "url": "https://github.com/kkgams/view.files/releases/download/v1.0.1/view.files.zip",
+            "entry": "views/view-files.js"
+          }
+        },
+        "label": "Files",
+        "internal": true,
+        "config": { "open": { "default": "files-default" } }
+      },
+      "files-rename": {
+        "url": {
+          "$file": {
+            "url": "https://github.com/kkgams/view.files/releases/download/v1.0.1/view.files.zip",
+            "entry": "views/files-rename.js"
+          }
+        },
+        "label": "New / rename file",
+        "internal": true
+      },
+      "files-default": {
+        "url": {
+          "$file": {
+            "url": "https://github.com/kkgams/view.files/releases/download/v1.0.1/view.files.zip",
+            "entry": "views/files-default.js"
+          }
+        },
+        "label": "File details",
+        "internal": true
+      },
       "view-font": {
         "url": "build.nosync/views/view-font.js",
         "label": "Font atlas",

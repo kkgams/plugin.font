@@ -245,7 +245,7 @@ export class FontRenderer {
     constructor(canvas) {
         this.canvas = canvas
         const gl = canvas.getContext("webgl2", { alpha: false, antialias: true })
-        if (!gl) throw new RangeError("WebGL 2 is unavailable; font generation and downloads still work")
+        if (!gl) throw new RangeError("WebGL 2 is unavailable; font generation and file operations still work")
         this.gl = gl
         this.program = gl.createProgram()
         invariant(this.program !== null, "Cannot allocate preview program")

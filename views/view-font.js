@@ -23,16 +23,24 @@ async function result(method, ...args) {
     return unwrap(value)
 }
 
-function download(blob, filename) {
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    document.body.append(link)
-    link.click()
-    link.remove()
-    // Keep the URL alive until the browser has consumed the click.
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+async function filesystem(method, ...args) {
+    const value = await runtime.invoke(`fs/fs::${method}`, ...args)
+    invariant(value !== null && typeof value === "object" && (Object.hasOwn(value, "ok") !== Object.hasOwn(value, "err")), `Malformed filesystem ${method} result`)
+    if (Object.hasOwn(value, "err")) {
+        invariant(typeof value.err === "string", `Malformed filesystem ${method} error`)
+        throw new UserError(value.err)
+    }
+    return unwrap(value)
+}
+
+async function writeFile(path, bytes) {
+    const temporary = `${path}.${crypto.randomUUID()}.tmp`
+    await filesystem("write-file", temporary, Array.from(bytes))
+    try { await filesystem("rename", temporary, path) }
+    catch (error) {
+        if (!(error instanceof UserError)) throw error
+        throw new UserError(`Cannot replace ${path}; temporary data remains at ${temporary}: ${error.message}`)
+    }
 }
 
 export class ViewFont extends ViewCanvasBase {
@@ -41,7 +49,6 @@ export class ViewFont extends ViewCanvasBase {
         this.epoch = (this.epoch === undefined ? 0 : this.epoch) + 1
         this.resource = null
         this.font = null
-        this.upload = null
         this.pending = null
         this.renderer = null
         this.innerHTML = `
@@ -49,10 +56,7 @@ export class ViewFont extends ViewCanvasBase {
             <aside><form aria-label="Font atlas editor">
                 <fieldset>
                     <legend>Source</legend>
-                    <label>Upload TTF, OTF or Artery font <input type="file" accept=".ttf,.otf,.arfont" data-field="upload"></label>
                     <label>Project font path <input type="text" data-field="path" placeholder="fonts/font.ttf or fonts/font.arfont" ${exact}></label>
-                    <label>Generation source <select data-field="source"><option value="upload">Uploaded TTF/OTF</option><option value="path">Project TTF/OTF path</option></select></label>
-                    <button type="button" data-action="open">Open project .arfont</button>
                 </fieldset>
                 <fieldset>
                     <legend>Generation</legend>
@@ -68,32 +72,19 @@ export class ViewFont extends ViewCanvasBase {
                     <button type="submit" class="accent" data-action="generate">Generate</button>
                 </fieldset>
                 <fieldset>
-                    <legend>Preview and export</legend>
+                    <legend>Preview</legend>
                     <label>Display <select data-field="display"><option value="rgb">Atlas RGB</option><option value="alpha">Atlas alpha</option><option value="median">Atlas median</option><option value="sample">Sample text</option></select></label>
                     <label>Live sample <textarea data-field="sample" rows="2" ${exact}>The quick brown fox jumps over the lazy dog.\n0123456789</textarea></label>
                     <label>Preview size (pixels) <input type="number" data-field="preview-size" min="1" step="any" value="56" required ${exact}></label>
                     <label>MTSDF effect <select data-field="effect"><option value="fill">Fill</option><option value="outline">Outline</option><option value="glow">Glow</option><option value="shadow">Shadow</option></select></label>
-                    <label>Project save path <input type="text" data-field="save-path" value="font.arfont" ${exact}></label>
-                    <button type="button" data-action="save" data-needs-font>Save project .arfont</button>
-                    <button type="button" data-action="arfont" data-needs-font>Download .arfont</button>
-                    <label>Atlas Project path <input type="text" data-field="atlas-path" value="fonts/font.png" ${exact}></label>
-                    <button type="button" data-action="json" data-needs-font>Download linked .font.json</button>
-                    <button type="button" data-action="png" data-needs-font>Download atlas PNG</button>
+                    <label>Atlas Project path <input type="text" data-field="atlas-path" value="font.png" ${exact}></label>
                 </fieldset>
                 <table><caption>Atlas information</caption><tbody data-element="info"></tbody></table>
             </form></aside>
-            <footer><output data-element="status" aria-live="polite">Upload a font or enter a project path to begin.</output></footer>
+            <footer><output data-element="status" aria-live="polite">Open a Project font to begin.</output></footer>
         `
         this.field("characters").value = ascii
         this.querySelector("form").addEventListener("submit", event => { event.preventDefault(); void this.generate() })
-        this.field("upload").addEventListener("change", () => { void this.loadUpload() })
-        for (const action of ["open", "save", "arfont", "json", "png"]) {
-            this.querySelector(`[data-action="${action}"]`).addEventListener("click", () => {
-                if (action === "open") void this.open()
-                else if (action === "save") void this.save()
-                else void this.export(action)
-            })
-        }
         for (const name of ["display", "sample", "preview-size", "effect"]) {
             this.field(name).addEventListener("input", () => this.draw())
         }
@@ -107,8 +98,54 @@ export class ViewFont extends ViewCanvasBase {
         // The Host helper owns visible-canvas sizing, pan/zoom and registration.
         // WebGL renders offscreen; its backing dimensions cannot feed back into layout.
         super.connectedCallback()
+        this.syncControls()
         const source = this.getAttribute("data-source")
-        if (source !== null && source !== "") { this.field("path").value = source; void this.open() }
+        if (source !== null && source !== "") void this.open(source)
+    }
+
+    createHeaderControlsElement() {
+        const root = document.createElement("div")
+        const group = document.createElement("div")
+        group.setAttribute("role", "buttongroup")
+        group.dataset.element = "file-actions"
+        for (const [action, label, icon] of [
+            ["open", "Open font", "folder_open"], ["save", "Save Artery font", "save"],
+            ["json", "Export linked JSON", "data_object"], ["png", "Export atlas PNG", "image"],
+        ]) {
+            const button = document.createElement("button")
+            button.type = "button"
+            button.dataset.action = action
+            if (action !== "open") button.setAttribute("data-needs-font", "")
+            button.setAttribute("aria-label", label)
+            const symbol = document.createElement("i")
+            symbol.setAttribute("aria-hidden", "true")
+            symbol.textContent = icon
+            button.append(symbol)
+            button.addEventListener("pointerenter", () => {
+                const rect = button.getBoundingClientRect()
+                void runtime.call("ui.tooltip.tip", { content: label,
+                    anchor: { kind: "aabb", x: rect.x, y: rect.y, width: rect.width, height: rect.height } }).then(unwrap)
+            })
+            button.addEventListener("click", () => {
+                if (action === "open") void this.open()
+                else if (action === "save") void this.save()
+                else void this.export(action)
+            })
+            group.append(button)
+        }
+        root.append(group)
+        return root
+    }
+
+    async choose(mode, title, filter, defaultName = "") {
+        const payload = unwrap(await runtime.call("ui.popup.open", {
+            tag: "view-files", title, size: "medium", props: { mode, filter, defaultName },
+        }))
+        invariant(payload !== null && typeof payload === "object", "Malformed file popup result")
+        if (payload.cancelled) return null
+        const selection = mode === "saver" ? payload : payload.selection
+        invariant(selection !== null && typeof selection === "object" && typeof selection.path === "string" && selection.path.length > 0, "File popup returned no path")
+        return selection.path
     }
 
     field(name) {
@@ -131,8 +168,10 @@ export class ViewFont extends ViewCanvasBase {
 
     syncControls() {
         const busy = this.pending !== null
-        for (const button of this.querySelectorAll("button")) button.disabled = busy || (button.hasAttribute("data-needs-font") && this.resource === null)
-        this.field("upload").disabled = busy
+        for (const root of [this, this._headerControlsElement]) {
+            if (root === null) continue // Header mounts after initial form setup.
+            for (const button of root.querySelectorAll("button")) button.disabled = busy || (button.hasAttribute("data-needs-font") && this.resource === null)
+        }
         const automatic = this.field("dimensions").value === "auto"
         this.field("width").disabled = automatic
         this.field("height").disabled = automatic
@@ -152,12 +191,12 @@ export class ViewFont extends ViewCanvasBase {
         this.pending = pending
         this.syncControls()
         try {
-            await pending
+            const completed = await pending
             if (current()) {
-                const preview = this.renderer === null ? "; WebGL 2 preview unavailable (downloads still work)" : ""
-                this.status(`${label} complete${preview}`, this.renderer === null ? "warning" : "success")
+                const preview = this.renderer === null ? "; WebGL 2 preview unavailable (file operations still work)" : ""
+                this.status(completed === false ? `${label} cancelled` : `${label} complete${preview}`, completed === false ? "info" : this.renderer === null ? "warning" : "success")
             }
-            return { ok: true }
+            return completed === false ? { ok: false, cancelled: true } : { ok: true }
         } catch (error) {
             if (current()) this.status(error.message, "danger")
             if (!(error instanceof UserError)) throw error
@@ -195,53 +234,44 @@ export class ViewFont extends ViewCanvasBase {
         return path
     }
 
-    async loadUpload() {
-        const files = this.field("upload").files
-        invariant(files !== null, "File input must expose a FileList")
-        if (files.length === 0) return
-        const file = files[0]
-        return this.operation("Read upload", async current => {
-            if (!/\.(ttf|otf|arfont)$/i.test(file.name)) throw new UserError("Choose a .ttf, .otf or .arfont file")
-            if (file.size > 64 * 1024 * 1024) throw new UserError("Font file exceeds the 64 MiB input limit")
-            let bytes
-            try { bytes = new Uint8Array(await file.arrayBuffer()) }
-            catch (error) { throw new UserError(`Cannot read upload: ${error}`) }
-            if (!current()) return
-            if (/\.arfont$/i.test(file.name)) {
-                this.upload = null
-                await this.accept(await result("decode", Array.from(bytes)), current)
-            } else {
-                this.upload = bytes
-                this.field("source").value = "upload"
-            }
-        })
-    }
-
     generate() {
         return this.operation("Generate atlas", async current => {
             const config = this.config()
-            let resource
-            if (this.field("source").value === "path") resource = await result("generate-file", this.path("path"), config)
-            else {
-                if (this.upload === null) throw new UserError("Upload a TTF/OTF font first, or select project path")
-                resource = await result("generate", Array.from(this.upload), config)
-            }
-            await this.accept(resource, current)
+            const path = this.path("path")
+            if (!/\.(ttf|otf)$/i.test(path)) throw new UserError("Choose a TTF/OTF Project font before generating")
+            const bytes = await this.readFont(path)
+            if (!current()) return
+            await this.accept(await result("generate", bytes, config), current)
         })
     }
 
     open(input) {
-        return this.operation("Open Artery font", async current => {
-            if (input !== undefined) {
-                const path = typeof input === "string" ? input : input.path
-                invariant(typeof path === "string" && path.length > 0, "font.open requires a path")
+        return this.operation("Open font", async current => {
+            const path = input === undefined
+                ? await this.choose("chooser", "Open Project font", "*.ttf,*.otf,*.arfont")
+                : typeof input === "string" ? input : input.path
+            if (path === null) return false
+            invariant(typeof path === "string" && path.length > 0, "font.open requires a path")
+            if (!current()) return
+            if (!/\.(ttf|otf|arfont)$/i.test(path)) throw new UserError("Choose a .ttf, .otf or .arfont file")
+            const bytes = await this.readFont(path)
+            if (!current()) return
+            if (/\.arfont$/i.test(path)) await this.accept(await result("decode", bytes), current)
+            if (current()) {
                 this.field("path").value = path
+                this.setAttribute("data-source", path)
             }
-            const path = this.path("path")
-            if (!/\.arfont$/i.test(path)) throw new UserError("Open requires an .arfont project path; use Generate for TTF/OTF")
-            await this.accept(await result("open", path), current)
-            if (current()) this.setAttribute("data-source", path)
         })
+    }
+
+    async readFont(path) {
+        const stat = await filesystem("stat", path)
+        invariant(stat !== null && typeof stat === "object" && Number.isSafeInteger(stat.size), "Malformed font file stat")
+        if (stat.size > 64 * 1024 * 1024) throw new UserError("Font file exceeds the 64 MiB input limit")
+        const bytes = await filesystem("read-file", path)
+        invariant(Array.isArray(bytes), "Expected font file bytes")
+        if (bytes.length > 64 * 1024 * 1024) throw new UserError("Font file exceeds the 64 MiB input limit")
+        return bytes
     }
 
     async accept(resource, current) {
@@ -273,31 +303,37 @@ export class ViewFont extends ViewCanvasBase {
     save() {
         return this.operation("Save Artery font", async current => {
             if (this.resource === null) throw new UserError("Generate or open a font first")
-            const path = this.path("save-path")
+            const path = await this.choose("saver", "Save Artery font", "*.arfont", "font.arfont")
+            if (path === null) return false
+            if (!current()) return
             if (!/\.arfont$/i.test(path)) throw new UserError("Save path must end in .arfont")
-            await result("save", this.resource, path)
-            if (current()) this.setAttribute("data-source", path)
+            const bytes = await result("encode", this.resource)
+            invariant(Array.isArray(bytes), "Expected encoded Artery bytes")
+            if (current()) await writeFile(path, bytes)
         })
     }
 
     export(format) {
-        return this.operation(`Download ${format}`, async current => {
+        return this.operation(`Export ${format}`, async current => {
             if (this.resource === null || this.font === null) throw new UserError("Generate or open a font first")
-            if (format === "arfont") {
-                const bytes = await result("encode", this.resource)
-                invariant(Array.isArray(bytes), "Expected encoded Artery bytes")
-                if (current()) download(new Blob([new Uint8Array(bytes)], { type: "application/octet-stream" }), "font.arfont")
+            invariant(format === "json" || format === "png", "Unknown font export format")
+            let linked
+            try { linked = linkedFontExport(this.font.metadata, this.field("atlas-path").value) }
+            catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
+            const path = await this.choose("saver", format === "json" ? "Export linked font JSON" : "Export atlas PNG",
+                format === "json" ? "*.font.json,*.json" : "*.png", format === "json" ? linked.jsonFilename : linked.imageFilename)
+            if (path === null) return false
+            if (!current()) return
+            if (format === "json") {
+                if (!/\.json$/i.test(path)) throw new UserError("JSON path must end in .json")
+                await writeFile(path, new TextEncoder().encode(JSON.stringify(linked.document, null, 2) + "\n"))
             } else {
-                invariant(format === "json" || format === "png", "Unknown font export format")
-                let linked
-                try { linked = linkedFontExport(this.font.metadata, this.field("atlas-path").value) }
+                try { linkedFontExport(this.font.metadata, path) }
                 catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
-                if (format === "json") {
-                    download(new Blob([JSON.stringify(linked.document, null, 2) + "\n"], { type: "application/json" }), linked.jsonFilename)
-                } else {
-                    const bytes = await atlasPng(this.font)
-                    if (current()) download(new Blob([bytes], { type: "image/png" }), linked.imageFilename)
-                }
+                const bytes = await atlasPng(this.font)
+                if (!current()) return
+                await writeFile(path, bytes)
+                if (current()) this.field("atlas-path").value = path
             }
         })
     }

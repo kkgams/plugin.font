@@ -34,7 +34,9 @@ need network access.
 The ZIP contains the component, View, canonical WIT and complete legal texts.
 The public interface remains `gams:font/font@0.1.0`; its version is independent
 of release tags. Pixels are bottom-up; resources must be released by callers.
-File operations use native WASI filesystem preopens, not `plugin.fs`.
+Component file operations use native WASI filesystem preopens. The View uses
+`plugin.fs` for all Project reads/writes and the released `view-files`
+chooser/saver through `ui.popup`; no browser uploads/downloads are used.
 
 `make open` sets `GAMS_APP_CWD` explicitly. It downloads the released Host only
 when absent, preserving notices without bypassing Gatekeeper. The Host installs
@@ -43,11 +45,18 @@ outputs. Native CLI tests do not establish GUI compatibility.
 
 ## Linked font export
 
+Header controls open Project TTF/OTF/Artery fonts, save Artery, and export PNG
+or linked JSON using the Files popup. Choose a TTF/OTF and press **Generate**;
+opening Artery restores its atlas directly. All paths are inside the Project.
+Saves replace existing destinations via temporary-file write and rename; parent
+directories must already exist (create them in the Files popup).
+
 The View exports `gams.font` version-1 JSON: existing `atlas`, `metrics`, `glyphs`
 and `kerning` plus `format: "gams.font"`, `version: 1` and `image`, a PNG path
-relative to the Project root (not the JSON directory). **Atlas Project path**
-defaults to `fonts/font.png`; download both exports with the same setting, then
-place the PNG there. Downloads use `font.png` and `font.font.json` basenames.
+relative to the Project root (not the JSON directory). Export PNG first: its
+successful save updates **Atlas Project path** (initially `font.png`). Then export
+JSON to any Project directory. If you move/re-export the PNG elsewhere, export
+JSON again so its reference matches.
 PNG rows are top-down; metadata atlas bounds remain bottom-origin pixels.
 Plane bounds, advances, kerning and metrics use em; atlas size uses pixels/em.
 See [the exact export contract](docs/index.md#linked-json--png-export) for units,
