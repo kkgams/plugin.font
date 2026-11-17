@@ -57,14 +57,23 @@ errors rather than discarding data.
 
 Artery (`.arfont`) is the native View save format. **Save** writes to the current
 Artery path, or opens a saver on first save. **Save as** always opens a saver;
-only a successful write changes the current save path. Opening TTF/OTF clears
-the save path. Saving keeps the generation source unchanged.
+only a successful write changes the current save path. Saving keeps the
+generation source unchanged.
 
-The header's **Open font**, **Save** (when a path is needed), **Save as**,
-and **Export JSON + PNG** controls use `view-files`
-chooser/saver popups through `ui.popup`. All View file reads and writes go through `plugin.fs`, without native
-browser upload/download dialogs. Open a Project TTF/OTF, then press **Generate**;
-opening an Artery font restores its atlas directly.
+**New from font** chooses a Project TTF/OTF and immediately generates an atlas
+using the current generation settings. Success replaces the atlas and clears
+the old Artery save path; cancellation or failure keeps the current document.
+**Generate** reuses that source after settings changes. **Open Artery font**
+restores a saved atlas and clears the generation source: Artery does not embed
+its original TTF/OTF, so Generate is disabled until you use New again.
+No manually entered Project font path is needed.
+
+The header's **New from font**, **Open Artery font**, **Save** (when a path is
+needed), **Save as**, and **Export JSON + PNG** controls use `view-files`
+chooser/saver popups through `ui.popup`. All View file reads and writes go
+through `plugin.fs`, without native browser upload/download dialogs.
+An initial `data-source` ending in `.ttf`/`.otf` starts generation; an `.arfont`
+source opens its saved atlas.
 
 **Export JSON + PNG** asks for one JSON destination (initially `font.json`) and
 writes both files together. `fonts/title.json` produces `fonts/title.png` beside

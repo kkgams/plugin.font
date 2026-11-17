@@ -47,9 +47,9 @@ function setup(document) {
         customElements: { define() {} }, document,
     })
     const view = new ViewFont()
-    const fields = { path: { value: "fonts/source.ttf" } }
+    const fields = {}
     Object.assign(view, {
-        epoch: 0, pending: null, savedPath: null, renderer: {}, isConnected: true, resource: { $resource: "gams:font/font", id: "res_test" },
+        epoch: 0, pending: null, savedPath: null, sourcePath: null, renderer: {}, isConnected: true, resource: { $resource: "gams:font/font", id: "res_test" },
         font: { channels: 4, info: { dimensions: { width: 1, height: 1 }, "pixel-format": "rgba8", "atlas-type": "mtsdf" }, pixels: new Uint8Array([4, 5, 6, 0]), metadata: { atlas: { width: 1 }, glyphs: [] } },
         field: name => { assert.ok(fields[name], name); return fields[name] },
         status(message, intent) { this.lastStatus = { message, intent } },
@@ -60,15 +60,17 @@ function setup(document) {
     return { view, calls, files, fields, select(value) { popup = value }, fail(value, method = null, path = null) { failure = value; failureMethod = method; failurePath = path } }
 }
 
-test("open and generation read Project fonts through plugin.fs", async () => {
-    const { view, calls, files, select, fields } = setup()
+test("New generates from a Project font and Generate reuses that source through plugin.fs", async () => {
+    const { view, calls, files, select } = setup()
     files.set("fonts/日本語.otf", [0, 255, 7])
     select({ selection: { path: "fonts/日本語.otf" } })
-    assert.equal((await view.open()).ok, true)
-    assert.equal(fields.path.value, "fonts/日本語.otf")
+    assert.equal((await view.new()).ok, true)
+    assert.equal(view.sourcePath, "fonts/日本語.otf")
     assert.equal(calls[0][1].tag, "view-files")
     assert.equal(calls[0][1].props.mode, "chooser")
+    assert.equal(calls[0][1].props.filter, "*.ttf,*.otf")
     await view.generate()
+    assert.equal(calls.filter(([method]) => method === "font/font::generate").length, 2)
     assert.deepEqual([...calls.find(([method]) => method === "font/font::generate")[1]], [0, 255, 7])
     assert.equal(view.accepted.id, "res_test")
     assert.ok(!calls.some(([method]) => method === "font/font::generate-file"))
@@ -111,14 +113,15 @@ test("first Save chooses Artery and subsequent Save reuses the destination", asy
 })
 
 test("Save as changes the destination without changing the generation source", async () => {
-    const { view, files, fields, calls, select } = setup()
+    const { view, files, calls, select } = setup()
+    view.sourcePath = "fonts/source.ttf"
     view.savedPath = "fonts/old.arfont"
     files.set(view.savedPath, [7])
     select({ path: "fonts/copy.arfont" })
     await view.saveAs()
     assert.equal(calls[0][1].props.defaultName, "old.arfont")
     assert.equal(view.savedPath, "fonts/copy.arfont")
-    assert.equal(fields.path.value, "fonts/source.ttf")
+    assert.equal(view.sourcePath, "fonts/source.ttf")
     assert.deepEqual(files.get("fonts/old.arfont"), [7])
     assert.deepEqual(files.get("fonts/copy.arfont"), [0, 255, 128])
 })
@@ -137,14 +140,61 @@ test("cancelled or failed Save as preserves the current destination", async () =
     assert.equal(view.savedPath, "original.arfont")
 })
 
-test("opening TTF or OTF clears the Artery save destination", async () => {
+test("New generates from TTF/OTF and clears the Artery save destination", async () => {
     for (const extension of ["ttf", "otf"]) {
         const { view, files } = setup()
         view.savedPath = "previous.arfont"
         files.set(`source.${extension}`, [1])
-        await view.open(`source.${extension}`)
+        await view.new(`source.${extension}`)
+        assert.equal(view.sourcePath, `source.${extension}`)
         assert.equal(view.savedPath, null)
     }
+})
+
+test("Open accepts only Artery and clears the generation source after decoding", async () => {
+    const { view, files, calls, select } = setup()
+    view.sourcePath = "previous.ttf"
+    files.set("font.arfont", [1])
+    select({ selection: { path: "font.arfont" } })
+    assert.equal((await view.open()).ok, true)
+    assert.equal(calls[0][1].props.filter, "*.arfont")
+    assert.equal(view.sourcePath, null)
+    assert.equal(view.savedPath, "font.arfont")
+    assert.match((await view.generate()).err, /New from font/)
+    assert.match((await view.open("font.ttf")).err, /New from font/)
+    assert.equal(view.savedPath, "font.arfont")
+})
+
+test("cancelled, invalid or failed New preserves the current document paths", async () => {
+    const { view, files, select, fail } = setup()
+    view.savedPath = "current.arfont"
+    view.sourcePath = "previous.ttf"
+    assert.equal((await view.new()).cancelled, true)
+    select({ selection: { path: "invalid.arfont" } })
+    assert.ok((await view.new()).err)
+    assert.equal(files.size, 0)
+    files.set("next.ttf", [1])
+    fail({ err: { code: "invalid-font", message: "Bad font" } }, "font/font::generate")
+    assert.match((await view.new("next.ttf")).err, /Bad font/)
+    assert.equal(view.savedPath, "current.arfont")
+    assert.equal(view.sourcePath, "previous.ttf")
+    assert.equal(view.accepted, undefined)
+})
+
+test("busy or disconnected New cannot generate or replace the document", async () => {
+    const { view, calls, select } = setup()
+    view.pending = Promise.resolve()
+    assert.match((await view.new()).err, /Wait for the current/)
+    assert.equal(calls.length, 0)
+    view.pending = null
+    select({ selection: { path: "next.ttf" } })
+    const pending = view.new()
+    view.isConnected = false
+    ++view.epoch
+    await pending
+    assert.equal(calls.length, 1)
+    assert.equal(view.sourcePath, null)
+    assert.equal(view.accepted, undefined)
 })
 
 test("one export writes linked JSON and a channel-preserving PNG with matching names", async () => {
@@ -197,7 +247,7 @@ test("a JSON replacement failure reports the completed PNG and preserves old JSO
 })
 
 test("cancel every picker without reads, encoding or writes", async () => {
-    for (const action of [view => view.open(), view => view.save(), view => view.saveAs(), view => view.export()]) {
+    for (const action of [view => view.new(), view => view.open(), view => view.save(), view => view.saveAs(), view => view.export()]) {
         const { view, calls, files } = setup()
         const outcome = await action(view)
         assert.equal(outcome.cancelled, true)
@@ -240,7 +290,7 @@ test("failed rename preserves the previous destination and identifies temporary 
 test("oversized input is rejected before reading it", async () => {
     const { view, calls, fail } = setup()
     fail({ ok: { size: 64 * 1024 * 1024 + 1 } }, "fs/fs::stat")
-    assert.match((await view.open("huge.ttf")).err, /64 MiB/)
+    assert.match((await view.new("huge.ttf")).err, /64 MiB/)
     assert.equal(calls.length, 1)
 })
 
@@ -287,14 +337,14 @@ function headerElement(tag) {
 test("header separates file and zoom actions with accessible icons and shared tooltips", async () => {
     const { view, calls } = setup({ createElement: headerElement })
     const activated = []
-    for (const method of ["open", "save", "saveAs", "export", "zoomIn", "zoomOut", "zoomFit"]) {
+    for (const method of ["new", "open", "save", "saveAs", "export", "zoomIn", "zoomOut", "zoomFit"]) {
         view[method] = (...args) => activated.push([method, ...args])
     }
     const header = view.createHeaderControlsElement()
     assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "view-actions"])
     assert.ok(header.children.every(group => group.attributes.role === "buttongroup"))
     assert.deepEqual(header.children.map(group => group.children.map(button => button.dataset.action)), [
-        ["open", "save", "save-as", "export"], ["zoom-in", "zoom-out", "zoom-fit"],
+        ["new", "open", "save", "save-as", "export"], ["zoom-in", "zoom-out", "zoom-fit"],
     ])
     for (const button of header.querySelectorAll("button")) {
         assert.equal(button.type, "button")
@@ -305,27 +355,35 @@ test("header separates file and zoom actions with accessible icons and shared to
         button.listeners.pointerenter()
     }
     await Promise.resolve()
-    assert.deepEqual(activated, [["open"], ["save"], ["saveAs"], ["export"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
-    assert.equal(calls.length, 7)
+    assert.deepEqual(activated, [["new"], ["open"], ["save"], ["saveAs"], ["export"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
+    assert.equal(calls.length, 8)
     assert.ok(calls.every(([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb"))
 })
 
 test("header actions track empty, loaded and busy font states", () => {
     const { view, fields } = setup({ createElement: headerElement })
     view._headerControlsElement = view.createHeaderControlsElement()
-    view.querySelectorAll = () => []
+    const generate = headerElement("button")
+    generate.setAttribute("data-needs-source", "")
+    view.querySelectorAll = () => [generate]
     Object.assign(fields, { dimensions: { value: "auto" }, width: {}, height: {} })
     const buttons = view._headerControlsElement.querySelectorAll("button")
     const sync = () => Object.getPrototypeOf(view).syncControls.call(view)
     view.resource = null
     sync()
-    assert.deepEqual(buttons.filter(button => !button.disabled).map(button => button.dataset.action), ["open"])
+    assert.deepEqual(buttons.filter(button => !button.disabled).map(button => button.dataset.action), ["new", "open"])
+    assert.equal(generate.disabled, true)
     view.resource = { id: "loaded" }
     sync()
+    assert.equal(generate.disabled, true) // Opened Artery has no TTF/OTF source.
+    view.sourcePath = "source.ttf"
+    sync()
+    assert.equal(generate.disabled, false)
     assert.ok(buttons.every(button => !button.disabled))
     view.pending = Promise.resolve()
     sync()
     assert.ok(buttons.every(button => button.disabled))
+    assert.equal(generate.disabled, true)
     view.pending = null
     sync()
     assert.ok(buttons.every(button => !button.disabled))

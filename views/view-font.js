@@ -50,15 +50,12 @@ export class ViewFont extends ViewCanvasBase {
         this.resource = null
         this.font = null
         this.savedPath = null
+        this.sourcePath = null
         this.pending = null
         this.renderer = null
         this.innerHTML = `
             <canvas data-element="preview" width="640" height="320" aria-label="Font atlas and live text preview"></canvas>
             <aside><form aria-label="Font atlas editor">
-                <fieldset>
-                    <legend>Source</legend>
-                    <label>Project font path <input type="text" data-field="path" placeholder="fonts/font.ttf or fonts/font.arfont" ${exact}></label>
-                </fieldset>
                 <fieldset>
                     <legend>Generation</legend>
                     <label>Characters <textarea data-field="characters" rows="3" ${exact}></textarea></label>
@@ -70,7 +67,7 @@ export class ViewFont extends ViewCanvasBase {
                     <label>Height <input type="number" data-field="height" min="1" step="1" value="512" required ${exact}></label>
                     <label>Edge coloring <select data-field="edge"><option value="simple">Simple</option><option value="ink-trap" selected>Ink trap</option><option value="distance">Distance</option></select></label>
                     <label>Miter limit <input type="number" data-field="miter" min="0" step="any" value="1" required ${exact}></label>
-                    <button type="submit" class="accent" data-action="generate">Generate</button>
+                    <button type="submit" class="accent" data-action="generate" data-needs-source>Generate</button>
                 </fieldset>
                 <fieldset>
                     <legend>Preview</legend>
@@ -81,7 +78,7 @@ export class ViewFont extends ViewCanvasBase {
                 </fieldset>
                 <table><caption>Atlas information</caption><tbody data-element="info"></tbody></table>
             </form></aside>
-            <footer><output data-element="status" aria-live="polite">Open a Project font to begin.</output></footer>
+            <footer><output data-element="status" aria-live="polite">Create a new atlas from a font, or open an Artery font.</output></footer>
         `
         this.field("characters").value = ascii
         this.querySelector("form").addEventListener("submit", event => { event.preventDefault(); void this.generate() })
@@ -100,14 +97,18 @@ export class ViewFont extends ViewCanvasBase {
         super.connectedCallback()
         this.syncControls()
         const source = this.getAttribute("data-source")
-        if (source !== null && source !== "") void this.open(source)
+        if (source !== null && source !== "") {
+            if (/\.(ttf|otf)$/i.test(source)) void this.new(source)
+            else void this.open(source)
+        }
     }
 
     createHeaderControlsElement() {
         const root = document.createElement("div")
         const groups = [
             ["file-actions", [
-                ["open", "Open font", "folder_open", () => this.open()],
+                ["new", "New from font", "note_add", () => this.new()],
+                ["open", "Open Artery font", "folder_open", () => this.open()],
                 ["save", "Save", "save", () => this.save()],
                 ["save-as", "Save as", "save_as", () => this.saveAs()],
                 ["export", "Export JSON + PNG", "data_object", () => this.export()],
@@ -126,7 +127,7 @@ export class ViewFont extends ViewCanvasBase {
                 const button = document.createElement("button")
                 button.type = "button"
                 button.dataset.action = action
-                if (action !== "open") button.setAttribute("data-needs-font", "")
+                if (action !== "new" && action !== "open") button.setAttribute("data-needs-font", "")
                 button.setAttribute("aria-label", label)
                 const symbol = document.createElement("i")
                 symbol.setAttribute("aria-hidden", "true")
@@ -178,7 +179,10 @@ export class ViewFont extends ViewCanvasBase {
         const busy = this.pending !== null
         for (const root of [this, this._headerControlsElement]) {
             if (root === null) continue // Header mounts after initial form setup.
-            for (const button of root.querySelectorAll("button")) button.disabled = busy || (button.hasAttribute("data-needs-font") && this.resource === null)
+            for (const button of root.querySelectorAll("button")) {
+                button.disabled = busy || (button.hasAttribute("data-needs-font") && this.resource === null) ||
+                    (button.hasAttribute("data-needs-source") && this.sourcePath === null)
+            }
         }
         const automatic = this.field("dimensions").value === "auto"
         this.field("width").disabled = automatic
@@ -236,38 +240,53 @@ export class ViewFont extends ViewCanvasBase {
         }
     }
 
-    path(name) {
-        const path = this.field(name).value.trim()
-        if (path.length === 0) throw new UserError("Enter a project-relative path")
-        return path
+    new(input) {
+        return this.operation("New atlas from font", async current => {
+            const path = input === undefined
+                ? await this.choose("chooser", "New atlas from font", "*.ttf,*.otf")
+                : typeof input === "string" ? input : input.path
+            if (path === null) return false
+            invariant(typeof path === "string" && path.length > 0, "font.new requires a path")
+            if (!current()) return
+            if (!/\.(ttf|otf)$/i.test(path)) throw new UserError("Choose a .ttf or .otf font")
+            await this.generateFrom(path, current)
+            if (current()) this.savedPath = null
+        })
     }
 
     generate() {
         return this.operation("Generate atlas", async current => {
-            const config = this.config()
-            const path = this.path("path")
-            if (!/\.(ttf|otf)$/i.test(path)) throw new UserError("Choose a TTF/OTF Project font before generating")
-            const bytes = await this.readFont(path)
-            if (!current()) return
-            await this.accept(await result("generate", bytes, config), current)
+            if (this.sourcePath === null) throw new UserError("Use New from font to choose a TTF/OTF first")
+            await this.generateFrom(this.sourcePath, current)
         })
+    }
+
+    async generateFrom(path, current) {
+        const config = this.config()
+        const bytes = await this.readFont(path)
+        if (!current()) return
+        await this.accept(await result("generate", bytes, config), current)
+        if (current()) {
+            this.sourcePath = path
+            this.setAttribute("data-source", path)
+        }
     }
 
     open(input) {
         return this.operation("Open font", async current => {
             const path = input === undefined
-                ? await this.choose("chooser", "Open Project font", "*.ttf,*.otf,*.arfont")
+                ? await this.choose("chooser", "Open Artery font", "*.arfont")
                 : typeof input === "string" ? input : input.path
             if (path === null) return false
             invariant(typeof path === "string" && path.length > 0, "font.open requires a path")
             if (!current()) return
-            if (!/\.(ttf|otf|arfont)$/i.test(path)) throw new UserError("Choose a .ttf, .otf or .arfont file")
+            if (!/\.arfont$/i.test(path)) throw new UserError("Choose an .arfont file; use New from font for TTF/OTF")
             const bytes = await this.readFont(path)
             if (!current()) return
-            if (/\.arfont$/i.test(path)) await this.accept(await result("decode", bytes), current)
+            await this.accept(await result("decode", bytes), current)
             if (current()) {
-                this.savedPath = /\.arfont$/i.test(path) ? path : null
-                this.field("path").value = path
+                this.savedPath = path
+                this.sourcePath = null
                 this.setAttribute("data-source", path)
             }
         })

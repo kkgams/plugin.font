@@ -57,13 +57,15 @@ latest Host. No ownership marker is required for cleanup.
 
 Artery (`.arfont`) is the native save format. **Save** updates the current
 Artery file, asking for a destination on first save. **Save as** always asks for
-a destination and makes it the current save path after success. Opening a
-TTF/OTF clears that destination; saving never changes the generation source.
-Header controls also open Project TTF/OTF/Artery fonts and **Export JSON + PNG**
-using one Files popup. A separate viewport group provides
+a destination and makes it the current save path after success. **New from font**
+chooses a Project TTF/OTF and generates an atlas with the current settings,
+clearing the previous save destination only after success. **Generate** reuses
+that source after settings changes. **Open Artery font** restores a saved atlas;
+Artery has no TTF/OTF source, so Generate is disabled until you use New again.
+Saving never changes the generation source. **Export JSON + PNG** uses one Files
+popup. A separate viewport group provides
 **Zoom in**, **Zoom out**, and **Fit preview**, enabled once an atlas is loaded.
-Choose a TTF/OTF and press **Generate**;
-opening Artery restores its atlas directly. All paths are inside the Project.
+All paths are inside the Project; no manually entered source path is needed.
 Saves replace existing destinations via temporary-file write and rename; parent
 directories must already exist (create them in the Files popup).
 
