@@ -29,7 +29,7 @@ need network access.
 | `make docs` | Build pinned wiki documentation to `build.nosync/site/`. |
 | `make serve-docs DOCS_PORT=8081` | Serve docs independently from the application (default 8080). |
 | `make validate-docs` | Validate wiki content. |
-| `make clean` | Remove `build.nosync/` and marked Make-downloaded Host/notices; preserve supplied Host/Units, legacy output and unrelated files; refuse tracked files/symlinks. |
+| `make clean` | Remove all of `build.nosync/`, `tools/` and `gams_modules/`, including unmarked tools/backups; preserve other paths; refuse tracked files/symlinks. |
 
 The ZIP contains the component, View, canonical WIT and complete legal texts.
 The public interface remains `gams:font/font@0.1.0`; its version is independent
@@ -40,17 +40,18 @@ chooser/saver through `ui.popup`; no browser uploads/downloads are used.
 
 `make open` sets `GAMS_APP_CWD` explicitly. It downloads the released Host only
 when absent, preserving notices without bypassing Gatekeeper. The Host installs
-pinned supporting Units from `gams.json`; supplied tools and Units are not clean
-outputs. Native CLI tests do not establish GUI compatibility.
+pinned supporting Units from `gams.json`. Everything under `build.nosync/`,
+`tools/` and `gams_modules/` is disposable; do not store authored files or
+irreplaceable data there. Native CLI tests do not establish GUI compatibility.
 
 This Project requires GAMS 3.2.0 or newer for native `$file` configuration
 resolution. An older cached Host can report `Unit source must be a non-empty
 string`. To explicitly replace it while preserving the old app and notices,
 move `tools/gams.app` and its accompanying `tools/gams-release-notices` outside
 those paths, then run `make open`. The downloader installs the latest released GAMS
-only when the app is absent. `make clean` removes a Host downloaded by this
-Makefile (identified by its ownership marker), so `make clean && make open`
-refreshes managed downloads; it preserves supplied or unmarked apps.
+only when the app is absent. `make clean && make open` removes all local tools
+and Unit caches, then rebuilds and downloads fresh dependencies, including the
+latest Host. No ownership marker is required for cleanup.
 
 ## Linked font export
 

@@ -32,7 +32,7 @@ Toolchain and documentation downloads require network access.
 | `make docs` | Build documentation to `build.nosync/site/`. |
 | `make serve-docs DOCS_PORT=8081` | Serve documentation; default port 8080. |
 | `make validate-docs` | Validate documentation. |
-| `make clean` | Remove `build.nosync/` and marked downloaded Host/notices; preserve supplied tools/Units and legacy output; refuse tracked files/symlinks. |
+| `make clean` | Remove all of `build.nosync/`, `tools/` and `gams_modules/`, including unmarked tools/backups; preserve other paths; refuse tracked files/symlinks. |
 
 ## Component contract
 

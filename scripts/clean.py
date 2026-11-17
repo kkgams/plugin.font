@@ -1,17 +1,12 @@
-"""Remove recreatable output and owned downloads, never supplied tools or Units."""
+"""Remove disposable build output, local tools and installed Unit caches."""
 from pathlib import Path
 import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-paths = ["build.nosync"]
-marker = ROOT / "tools/gams-release-notices/.gams-managed"
-if marker.is_symlink():
-    raise SystemExit("Refusing symlink Host ownership marker")
-if marker.is_file() and marker.read_text() == "plugin.font Makefile Host download\n":
-    paths += ["tools/gams.app", "tools/gams-release-notices"]
-# Supplied Host apps, installed Units, legacy build/dist/npm and unrelated files
-# are deliberately preserved. All new recreatable output is build.nosync.
+# These directories are explicitly disposable, including unmarked downloads.
+# Do not infer other deletion targets from Git's ignore rules.
+paths = ["build.nosync", "tools", "gams_modules"]
 for name in paths:
     path = ROOT / name
     for part in (path, *path.parents):
