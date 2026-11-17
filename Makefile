@@ -9,7 +9,7 @@ WIT_BINDGEN ?= wit-bindgen
 WASM_TOOLS ?= wasm-tools
 JOBS ?= 4
 DOCS_PORT ?= 8080
-GAMS_RELEASE_API ?= https://api.github.com/repos/kkgams/gams/releases/latest
+GAMS_RELEASE_API ?= https://api.github.com/repos/kkgams/gams/releases/tags/v3.2.0
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 WIKI_VERSION := v1.4.0
@@ -93,7 +93,7 @@ tools/gams.app:
 	@set -eu; stage=$$(mktemp -d "build.nosync/tmp/gams-download.XXXXXX"); \
 		trap 'rm -rf "$$stage"' EXIT; \
 		$(CURL) --fail --location --silent --show-error "$(GAMS_RELEASE_API)" --output "$$stage/release.json"; \
-		url=$$($(PYTHON) -c 'import json, sys; release = json.load(open(sys.argv[1])); assets = [a for a in release["assets"] if a["name"].startswith("GAMS-") and a["name"].endswith("-macos-aarch64.zip")]; assert len(assets) == 1, "Expected exactly one GAMS macOS Apple Silicon ZIP asset"; print(assets[0]["browser_download_url"])' "$$stage/release.json"); \
+		url=$$($(PYTHON) -c 'import json, sys; release = json.load(open(sys.argv[1])); assets = [a for a in release["assets"] if a["name"] == "GAMS-macos-aarch64.zip"]; assert len(assets) == 1, "Expected exactly one GAMS macOS Apple Silicon ZIP asset"; print(assets[0]["browser_download_url"])' "$$stage/release.json"); \
 		$(CURL) --fail --location --silent --show-error "$$url" --output "$$stage/gams.zip"; \
 		unzip -q "$$stage/gams.zip" -d "$$stage/unpacked"; \
 		test -f "$$stage/unpacked/GAMS.app/Contents/Info.plist"; \

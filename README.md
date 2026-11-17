@@ -43,6 +43,13 @@ when absent, preserving notices without bypassing Gatekeeper. The Host installs
 pinned supporting Units from `gams.json`; supplied tools and Units are not clean
 outputs. Native CLI tests do not establish GUI compatibility.
 
+This Project requires GAMS 3.2.0 or newer for native `$file` configuration
+resolution. An older cached Host can report `Unit source must be a non-empty
+string`. To explicitly replace it while preserving the old app and notices,
+move `tools/gams.app` and its accompanying `tools/gams-release-notices` outside
+those paths, then run `make open`. The downloader installs pinned GAMS 3.2.0
+only when the app is absent.
+
 ## Linked font export
 
 Header controls open Project TTF/OTF/Artery fonts, save Artery, and export PNG
