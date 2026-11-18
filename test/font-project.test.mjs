@@ -28,36 +28,93 @@ function setup(document) {
         },
         async invoke(method, ...args) {
             calls.push([method, ...args])
-            if (failure !== null && (failureMethod === null || failureMethod === method) &&
-                (failurePath === null || args[1] === failurePath)) return failure
+            if (
+                failure !== null &&
+                (failureMethod === null || failureMethod === method) &&
+                (failurePath === null || args[1] === failurePath)
+            )
+                return failure
             if (method === "fs/fs::stat") return { ok: { size: files.get(args[0]).length } }
             if (method === "fs/fs::read-file") return { ok: files.get(args[0]) }
-            if (method === "fs/fs::write-file") { files.set(args[0], [...args[1]]); return { ok: null } }
+            if (method === "fs/fs::write-file") {
+                files.set(args[0], [...args[1]])
+                return { ok: null }
+            }
             if (method === "fs/fs::rename") {
-                files.set(args[1], files.get(args[0])); files.delete(args[0]); return { ok: null }
+                files.set(args[1], files.get(args[0]))
+                files.delete(args[0])
+                return { ok: null }
             }
             if (method === "font/font::encode") return { ok: [0, 255, 128] }
-            if (["font/font::generate", "font/font::decode"].includes(method)) return { ok: { $resource: "gams:font/font", id: "res_test" } }
+            if (["font/font::generate", "font/font::decode"].includes(method))
+                return { ok: { $resource: "gams:font/font", id: "res_test" } }
             throw new Error(`Unexpected method: ${method}`)
         },
     }
-    const ViewFont = vm.runInNewContext(source.replace(/^import .*\n/gm, "").replace("export class ViewFont", "class ViewFont") + "\nViewFont", {
-        runtime, unwrap: value => { if (Object.hasOwn(value, "err")) throw new Error(String(value.err)); return value.ok },
-        ViewCanvasBase: class {}, ...renderer, ...exports, TextEncoder, crypto, RangeError,
-        customElements: { define() {} }, document,
-    })
+    const ViewFont = vm.runInNewContext(
+        `${source.replace(/^import .*\n/gm, "").replace("export class ViewFont", "class ViewFont")}\nViewFont`,
+        {
+            runtime,
+            unwrap: (value) => {
+                if (Object.hasOwn(value, "err")) throw new Error(String(value.err))
+                return value.ok
+            },
+            ViewCanvasBase: class {},
+            ...renderer,
+            ...exports,
+            TextEncoder,
+            crypto,
+            RangeError,
+            customElements: { define() {} },
+            document,
+        },
+    )
     const view = new ViewFont()
     const fields = {}
     Object.assign(view, {
-        epoch: 0, pending: null, savedPath: null, sourcePath: null, renderer: {}, isConnected: true, resource: { $resource: "gams:font/font", id: "res_test" },
-        font: { channels: 4, info: { dimensions: { width: 1, height: 1 }, "pixel-format": "rgba8", "atlas-type": "mtsdf" }, pixels: new Uint8Array([4, 5, 6, 0]), metadata: { atlas: { width: 1 }, glyphs: [] } },
-        field: name => { assert.ok(fields[name], name); return fields[name] },
-        status(message, intent) { this.lastStatus = { message, intent } },
-        syncControls() {}, config: () => ({ size: 48 }),
-        setAttribute(name, value) { this[name] = value },
-        async accept(resource, current) { if (current()) this.accepted = resource },
+        epoch: 0,
+        pending: null,
+        savedPath: null,
+        sourcePath: null,
+        renderer: {},
+        isConnected: true,
+        resource: { $resource: "gams:font/font", id: "res_test" },
+        font: {
+            channels: 4,
+            info: { dimensions: { width: 1, height: 1 }, "pixel-format": "rgba8", "atlas-type": "mtsdf" },
+            pixels: new Uint8Array([4, 5, 6, 0]),
+            metadata: { atlas: { width: 1 }, glyphs: [] },
+        },
+        field: (name) => {
+            assert.ok(fields[name], name)
+            return fields[name]
+        },
+        status(message, intent) {
+            this.lastStatus = { message, intent }
+        },
+        syncControls() {},
+        config: () => ({ size: 48 }),
+        setAttribute(name, value) {
+            this[name] = value
+        },
+        async accept(resource, current) {
+            if (current()) this.accepted = resource
+        },
     })
-    return { view, calls, files, fields, select(value) { popup = value }, fail(value, method = null, path = null) { failure = value; failureMethod = method; failurePath = path } }
+    return {
+        view,
+        calls,
+        files,
+        fields,
+        select(value) {
+            popup = value
+        },
+        fail(value, method = null, path = null) {
+            failure = value
+            failureMethod = method
+            failurePath = path
+        },
+    }
 }
 
 test("New generates from a Project font and Generate reuses that source through plugin.fs", async () => {
@@ -86,7 +143,7 @@ test("Artery open decodes filesystem bytes and save encodes then replaces via pl
     assert.equal(view.savedPath, "saved.arfont")
     assert.deepEqual(files.get("saved.arfont"), [0, 255, 128])
     assert.equal(calls.find(([method]) => method === "ui.popup.open")[1].props.mode, "saver")
-    assert.equal([...files.keys()].filter(path => path.endsWith(".tmp")).length, 0)
+    assert.equal([...files.keys()].filter((path) => path.endsWith(".tmp")).length, 0)
 })
 
 test("Save updates an opened Artery file without a picker", async () => {
@@ -215,7 +272,10 @@ test("one export writes linked JSON and a channel-preserving PNG with matching n
     assert.equal(json.version, 1)
     assert.deepEqual(json.glyphs, [])
     assert.deepEqual([...files.keys()].sort(), ["assets/日本語.json", "assets/日本語.png"])
-    assert.deepEqual(calls.filter(([method]) => method === "fs/fs::rename").map(call => call[2]), ["assets/日本語.png", "assets/日本語.json"])
+    assert.deepEqual(
+        calls.filter(([method]) => method === "fs/fs::rename").map((call) => call[2]),
+        ["assets/日本語.png", "assets/日本語.json"],
+    )
     assert.equal(view.savedPath, null)
 })
 
@@ -247,7 +307,13 @@ test("a JSON replacement failure reports the completed PNG and preserves old JSO
 })
 
 test("cancel every picker without reads, encoding or writes", async () => {
-    for (const action of [view => view.new(), view => view.open(), view => view.save(), view => view.saveAs(), view => view.export()]) {
+    for (const action of [
+        (view) => view.new(),
+        (view) => view.open(),
+        (view) => view.save(),
+        (view) => view.saveAs(),
+        (view) => view.export(),
+    ]) {
         const { view, calls, files } = setup()
         const outcome = await action(view)
         assert.equal(outcome.cancelled, true)
@@ -259,7 +325,7 @@ test("cancel every picker without reads, encoding or writes", async () => {
 })
 
 test("bad save extensions fail before encoding or writing", async () => {
-    for (const action of [view => view.save(), view => view.saveAs(), view => view.export()]) {
+    for (const action of [(view) => view.save(), (view) => view.saveAs(), (view) => view.export()]) {
         const { view, calls, select } = setup()
         select({ path: "bad.txt" })
         assert.ok((await action(view)).err)
@@ -284,7 +350,7 @@ test("failed rename preserves the previous destination and identifies temporary 
     const outcome = await view.export()
     assert.match(outcome.err, /temporary data remains at font\.png\..*\.tmp/)
     assert.deepEqual(files.get("font.json"), [1, 2, 3])
-    assert.equal([...files.keys()].filter(path => path.endsWith(".tmp")).length, 1)
+    assert.equal([...files.keys()].filter((path) => path.endsWith(".tmp")).length, 1)
 })
 
 test("oversized input is rejected before reading it", async () => {
@@ -321,15 +387,31 @@ test("a disconnected View cannot write after a pending popup resolves", async ()
 // Only the DOM surface used to construct header controls; no Host/canvas emulation.
 function headerElement(tag) {
     return {
-        tag, dataset: {}, attributes: {}, children: [], listeners: {},
-        setAttribute(name, value) { this.attributes[name] = value },
-        hasAttribute(name) { return Object.hasOwn(this.attributes, name) },
-        append(child) { this.children.push(child) },
-        addEventListener(type, handler) { this.listeners[type] = handler },
-        getBoundingClientRect() { return { x: 10, y: 20, width: 30, height: 30 } },
+        tag,
+        dataset: {},
+        attributes: {},
+        children: [],
+        listeners: {},
+        setAttribute(name, value) {
+            this.attributes[name] = value
+        },
+        hasAttribute(name) {
+            return Object.hasOwn(this.attributes, name)
+        },
+        append(child) {
+            this.children.push(child)
+        },
+        addEventListener(type, handler) {
+            this.listeners[type] = handler
+        },
+        getBoundingClientRect() {
+            return { x: 10, y: 20, width: 30, height: 30 }
+        },
         querySelectorAll(selector) {
             assert.equal(selector, "button")
-            return this.children.flatMap(child => child.tag === "button" ? [child] : child.querySelectorAll(selector))
+            return this.children.flatMap((child) =>
+                child.tag === "button" ? [child] : child.querySelectorAll(selector),
+            )
         },
     }
 }
@@ -341,11 +423,15 @@ test("header orders file, generation and zoom groups with accessible icons and s
         view[method] = (...args) => activated.push([method, ...args])
     }
     const header = view.createHeaderControlsElement()
-    assert.deepEqual(header.children.map(group => group.dataset.element), ["file-actions", "tool-actions", "view-actions"])
-    assert.ok(header.children.every(group => group.attributes.role === "buttongroup"))
-    assert.deepEqual(header.children.map(group => group.children.map(button => button.dataset.action)), [
-        ["new", "open", "save", "save-as", "export"], ["generate"], ["zoom-in", "zoom-out", "zoom-fit"],
-    ])
+    assert.deepEqual(
+        header.children.map((group) => group.dataset.element),
+        ["file-actions", "tool-actions", "view-actions"],
+    )
+    assert.ok(header.children.every((group) => group.attributes.role === "buttongroup"))
+    assert.deepEqual(
+        header.children.map((group) => group.children.map((button) => button.dataset.action)),
+        [["new", "open", "save", "save-as", "export"], ["generate"], ["zoom-in", "zoom-out", "zoom-fit"]],
+    )
     for (const button of header.querySelectorAll("button")) {
         assert.equal(button.type, "button")
         assert.ok(button.attributes["aria-label"])
@@ -355,15 +441,31 @@ test("header orders file, generation and zoom groups with accessible icons and s
         button.listeners.pointerenter()
     }
     await Promise.resolve()
-    assert.deepEqual(activated, [["new"], ["open"], ["save"], ["saveAs"], ["export"], ["generate"], ["zoomIn"], ["zoomOut"], ["zoomFit"]])
+    assert.deepEqual(activated, [
+        ["new"],
+        ["open"],
+        ["save"],
+        ["saveAs"],
+        ["export"],
+        ["generate"],
+        ["zoomIn"],
+        ["zoomOut"],
+        ["zoomFit"],
+    ])
     assert.equal(calls.length, 9)
-    assert.ok(calls.every(([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb"))
+    assert.ok(
+        calls.every(
+            ([method, options]) => method === "ui.tooltip.tip" && options.content && options.anchor.kind === "aabb",
+        ),
+    )
 })
 
 test("header actions track empty, loaded and busy font states", () => {
     const { view, fields } = setup({ createElement: headerElement })
     view._headerControlsElement = view.createHeaderControlsElement()
-    const generate = view._headerControlsElement.querySelectorAll("button").find(button => button.dataset.action === "generate")
+    const generate = view._headerControlsElement
+        .querySelectorAll("button")
+        .find((button) => button.dataset.action === "generate")
     assert.ok(generate)
     assert.equal(generate.className, "accent")
     view.querySelectorAll = () => []
@@ -372,7 +474,10 @@ test("header actions track empty, loaded and busy font states", () => {
     const sync = () => Object.getPrototypeOf(view).syncControls.call(view)
     view.resource = null
     sync()
-    assert.deepEqual(buttons.filter(button => !button.disabled).map(button => button.dataset.action), ["new", "open"])
+    assert.deepEqual(
+        buttons.filter((button) => !button.disabled).map((button) => button.dataset.action),
+        ["new", "open"],
+    )
     assert.equal(generate.disabled, true)
     view.resource = { id: "loaded" }
     sync()
@@ -380,14 +485,14 @@ test("header actions track empty, loaded and busy font states", () => {
     view.sourcePath = "source.ttf"
     sync()
     assert.equal(generate.disabled, false)
-    assert.ok(buttons.every(button => !button.disabled))
+    assert.ok(buttons.every((button) => !button.disabled))
     view.pending = Promise.resolve()
     sync()
-    assert.ok(buttons.every(button => button.disabled))
+    assert.ok(buttons.every((button) => button.disabled))
     assert.equal(generate.disabled, true)
     view.pending = null
     sync()
-    assert.ok(buttons.every(button => !button.disabled))
+    assert.ok(buttons.every((button) => !button.disabled))
 })
 
 test("the Project registers all Files popup dependencies from one pinned archive", async () => {

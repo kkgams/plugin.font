@@ -1,7 +1,7 @@
 import { runtime, unwrap } from "/core/runtime.js"
 import { ViewCanvasBase } from "/util/view-canvas-base.js"
-import { FontRenderer, atlasPng, codepoints, invariant, validateFont } from "./font-renderer.js"
 import { linkedFontExport } from "./font-export.js"
+import { atlasPng, codepoints, FontRenderer, invariant, validateFont } from "./font-renderer.js"
 
 class UserError extends Error {}
 const exact = 'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
@@ -15,9 +15,15 @@ async function invoke(method, ...args) {
 
 async function result(method, ...args) {
     const value = await invoke(method, ...args)
-    invariant(value !== null && typeof value === "object" && (Object.hasOwn(value, "ok") !== Object.hasOwn(value, "err")), `Malformed ${method} result`)
+    invariant(
+        value !== null && typeof value === "object" && Object.hasOwn(value, "ok") !== Object.hasOwn(value, "err"),
+        `Malformed ${method} result`,
+    )
     if (Object.hasOwn(value, "err")) {
-        invariant(value.err !== null && typeof value.err.code === "string" && typeof value.err.message === "string", `Malformed ${method} font error`)
+        invariant(
+            value.err !== null && typeof value.err.code === "string" && typeof value.err.message === "string",
+            `Malformed ${method} font error`,
+        )
         throw new UserError(`${value.err.code}: ${value.err.message}`)
     }
     return unwrap(value)
@@ -25,7 +31,10 @@ async function result(method, ...args) {
 
 async function filesystem(method, ...args) {
     const value = await runtime.invoke(`fs/fs::${method}`, ...args)
-    invariant(value !== null && typeof value === "object" && (Object.hasOwn(value, "ok") !== Object.hasOwn(value, "err")), `Malformed filesystem ${method} result`)
+    invariant(
+        value !== null && typeof value === "object" && Object.hasOwn(value, "ok") !== Object.hasOwn(value, "err"),
+        `Malformed filesystem ${method} result`,
+    )
     if (Object.hasOwn(value, "err")) {
         invariant(typeof value.err === "string", `Malformed filesystem ${method} error`)
         throw new UserError(value.err)
@@ -36,8 +45,9 @@ async function filesystem(method, ...args) {
 async function writeFile(path, bytes) {
     const temporary = `${path}.${crypto.randomUUID()}.tmp`
     await filesystem("write-file", temporary, Array.from(bytes))
-    try { await filesystem("rename", temporary, path) }
-    catch (error) {
+    try {
+        await filesystem("rename", temporary, path)
+    } catch (error) {
         if (!(error instanceof UserError)) throw error
         throw new UserError(`Cannot replace ${path}; temporary data remains at ${temporary}: ${error.message}`)
     }
@@ -80,14 +90,18 @@ export class ViewFont extends ViewCanvasBase {
             <footer><output data-element="status" aria-live="polite">Create a new atlas from a font, or open an Artery font.</output></footer>
         `
         this.field("characters").value = ascii
-        this.querySelector("form").addEventListener("submit", event => { event.preventDefault(); void this.generate() })
+        this.querySelector("form").addEventListener("submit", (event) => {
+            event.preventDefault()
+            void this.generate()
+        })
         for (const name of ["display", "sample", "preview-size", "effect"]) {
             this.field(name).addEventListener("input", () => this.draw())
         }
         this.field("dimensions").addEventListener("change", () => this.syncControls())
         this.syncControls()
-        try { this.renderer = new FontRenderer(document.createElement("canvas")) }
-        catch (error) {
+        try {
+            this.renderer = new FontRenderer(document.createElement("canvas"))
+        } catch (error) {
             if (!(error instanceof RangeError)) throw error
             this.status(error.message, "warning")
         }
@@ -105,21 +119,25 @@ export class ViewFont extends ViewCanvasBase {
     createHeaderControlsElement() {
         const root = document.createElement("div")
         const groups = [
-            ["file-actions", [
-                ["new", "New from font", "note_add", () => this.new()],
-                ["open", "Open Artery font", "folder_open", () => this.open()],
-                ["save", "Save", "save", () => this.save()],
-                ["save-as", "Save as", "save_as", () => this.saveAs()],
-                ["export", "Export JSON + PNG", "data_object", () => this.export()],
-            ]],
-            ["tool-actions", [
-                ["generate", "Generate atlas", "auto_fix_high", () => this.generate()],
-            ]],
-            ["view-actions", [
-                ["zoom-in", "Zoom in", "zoom_in", () => this.zoomIn()],
-                ["zoom-out", "Zoom out", "zoom_out", () => this.zoomOut()],
-                ["zoom-fit", "Fit preview", "fit_screen", () => this.zoomFit()],
-            ]],
+            [
+                "file-actions",
+                [
+                    ["new", "New from font", "note_add", () => this.new()],
+                    ["open", "Open Artery font", "folder_open", () => this.open()],
+                    ["save", "Save", "save", () => this.save()],
+                    ["save-as", "Save as", "save_as", () => this.saveAs()],
+                    ["export", "Export JSON + PNG", "data_object", () => this.export()],
+                ],
+            ],
+            ["tool-actions", [["generate", "Generate atlas", "auto_fix_high", () => this.generate()]]],
+            [
+                "view-actions",
+                [
+                    ["zoom-in", "Zoom in", "zoom_in", () => this.zoomIn()],
+                    ["zoom-out", "Zoom out", "zoom_out", () => this.zoomOut()],
+                    ["zoom-fit", "Fit preview", "fit_screen", () => this.zoomFit()],
+                ],
+            ],
         ]
         for (const [name, actions] of groups) {
             const group = document.createElement("div")
@@ -140,8 +158,12 @@ export class ViewFont extends ViewCanvasBase {
                 button.append(symbol)
                 button.addEventListener("pointerenter", () => {
                     const rect = button.getBoundingClientRect()
-                    void runtime.call("ui.tooltip.tip", { content: label,
-                        anchor: { kind: "aabb", x: rect.x, y: rect.y, width: rect.width, height: rect.height } }).then(unwrap)
+                    void runtime
+                        .call("ui.tooltip.tip", {
+                            content: label,
+                            anchor: { kind: "aabb", x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                        })
+                        .then(unwrap)
                 })
                 button.addEventListener("click", () => void run())
                 group.append(button)
@@ -152,13 +174,24 @@ export class ViewFont extends ViewCanvasBase {
     }
 
     async choose(mode, title, filter, defaultName = "") {
-        const payload = unwrap(await runtime.call("ui.popup.open", {
-            tag: "view-files", title, size: "medium", props: { mode, filter, defaultName },
-        }))
+        const payload = unwrap(
+            await runtime.call("ui.popup.open", {
+                tag: "view-files",
+                title,
+                size: "medium",
+                props: { mode, filter, defaultName },
+            }),
+        )
         invariant(payload !== null && typeof payload === "object", "Malformed file popup result")
         if (payload.cancelled) return null
         const selection = mode === "saver" ? payload : payload.selection
-        invariant(selection !== null && typeof selection === "object" && typeof selection.path === "string" && selection.path.length > 0, "File popup returned no path")
+        invariant(
+            selection !== null &&
+                typeof selection === "object" &&
+                typeof selection.path === "string" &&
+                selection.path.length > 0,
+            "File popup returned no path",
+        )
         return selection.path
     }
 
@@ -185,7 +218,9 @@ export class ViewFont extends ViewCanvasBase {
         for (const root of [this, this._headerControlsElement]) {
             if (root === null) continue // Header mounts after initial form setup.
             for (const button of root.querySelectorAll("button")) {
-                button.disabled = busy || (button.hasAttribute("data-needs-font") && this.resource === null) ||
+                button.disabled =
+                    busy ||
+                    (button.hasAttribute("data-needs-font") && this.resource === null) ||
                     (button.hasAttribute("data-needs-source") && this.sourcePath === null)
             }
         }
@@ -210,8 +245,12 @@ export class ViewFont extends ViewCanvasBase {
         try {
             const completed = await pending
             if (current()) {
-                const preview = this.renderer === null ? "; WebGL 2 preview unavailable (file operations still work)" : ""
-                this.status(completed === false ? `${label} cancelled` : `${label} complete${preview}`, completed === false ? "info" : this.renderer === null ? "warning" : "success")
+                const preview =
+                    this.renderer === null ? "; WebGL 2 preview unavailable (file operations still work)" : ""
+                this.status(
+                    completed === false ? `${label} cancelled` : `${label} complete${preview}`,
+                    completed === false ? "info" : this.renderer === null ? "warning" : "success",
+                )
             }
             return completed === false ? { ok: false, cancelled: true } : { ok: true }
         } catch (error) {
@@ -219,37 +258,51 @@ export class ViewFont extends ViewCanvasBase {
             if (!(error instanceof UserError)) throw error
             return { err: error.message }
         } finally {
-            if (current()) { this.pending = null; this.syncControls() }
+            if (current()) {
+                this.pending = null
+                this.syncControls()
+            }
         }
     }
 
     number(name, minimum, integer = false) {
         const value = this.field(name).valueAsNumber
-        if (!Number.isFinite(value) || value < minimum || (integer && !Number.isInteger(value))) throw new UserError(`Invalid ${name}`)
+        if (!Number.isFinite(value) || value < minimum || (integer && !Number.isInteger(value)))
+            throw new UserError(`Invalid ${name}`)
         return value
     }
 
     config() {
         let points
-        try { points = codepoints(this.field("characters").value) }
-        catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
+        try {
+            points = codepoints(this.field("characters").value)
+        } catch (error) {
+            if (!(error instanceof RangeError)) throw error
+            throw new UserError(error.message)
+        }
         if (points.length === 0) throw new UserError("Enter at least one character")
         return {
             "atlas-type": this.field("type").value,
             codepoints: points,
             size: this.number("size", Number.MIN_VALUE),
             "distance-range": this.number("range", Number.MIN_VALUE),
-            dimensions: this.field("dimensions").value === "auto" ? null : { width: this.number("width", 1, true), height: this.number("height", 1, true) },
+            dimensions:
+                this.field("dimensions").value === "auto"
+                    ? null
+                    : { width: this.number("width", 1, true), height: this.number("height", 1, true) },
             "edge-coloring": this.field("edge").value,
             "miter-limit": this.number("miter", 0),
         }
     }
 
     new(input) {
-        return this.operation("New atlas from font", async current => {
-            const path = input === undefined
-                ? await this.choose("chooser", "New atlas from font", "*.ttf,*.otf")
-                : typeof input === "string" ? input : input.path
+        return this.operation("New atlas from font", async (current) => {
+            const path =
+                input === undefined
+                    ? await this.choose("chooser", "New atlas from font", "*.ttf,*.otf")
+                    : typeof input === "string"
+                      ? input
+                      : input.path
             if (path === null) return false
             invariant(typeof path === "string" && path.length > 0, "font.new requires a path")
             if (!current()) return
@@ -260,7 +313,7 @@ export class ViewFont extends ViewCanvasBase {
     }
 
     generate() {
-        return this.operation("Generate atlas", async current => {
+        return this.operation("Generate atlas", async (current) => {
             if (this.sourcePath === null) throw new UserError("Use New from font to choose a TTF/OTF first")
             await this.generateFrom(this.sourcePath, current)
         })
@@ -278,10 +331,13 @@ export class ViewFont extends ViewCanvasBase {
     }
 
     open(input) {
-        return this.operation("Open font", async current => {
-            const path = input === undefined
-                ? await this.choose("chooser", "Open Artery font", "*.arfont")
-                : typeof input === "string" ? input : input.path
+        return this.operation("Open font", async (current) => {
+            const path =
+                input === undefined
+                    ? await this.choose("chooser", "Open Artery font", "*.arfont")
+                    : typeof input === "string"
+                      ? input
+                      : input.path
             if (path === null) return false
             invariant(typeof path === "string" && path.length > 0, "font.open requires a path")
             if (!current()) return
@@ -299,7 +355,10 @@ export class ViewFont extends ViewCanvasBase {
 
     async readFont(path) {
         const stat = await filesystem("stat", path)
-        invariant(stat !== null && typeof stat === "object" && Number.isSafeInteger(stat.size), "Malformed font file stat")
+        invariant(
+            stat !== null && typeof stat === "object" && Number.isSafeInteger(stat.size),
+            "Malformed font file stat",
+        )
         if (stat.size > 64 * 1024 * 1024) throw new UserError("Font file exceeds the 64 MiB input limit")
         const bytes = await filesystem("read-file", path)
         invariant(Array.isArray(bytes), "Expected font file bytes")
@@ -308,7 +367,13 @@ export class ViewFont extends ViewCanvasBase {
     }
 
     async accept(resource, current) {
-        invariant(resource !== null && typeof resource === "object" && typeof resource.$resource === "string" && typeof resource.id === "string", "Expected an owned font resource")
+        invariant(
+            resource !== null &&
+                typeof resource === "object" &&
+                typeof resource.$resource === "string" &&
+                typeof resource.id === "string",
+            "Expected an owned font resource",
+        )
         let owned = true
         try {
             if (!current()) return
@@ -319,15 +384,22 @@ export class ViewFont extends ViewCanvasBase {
             const metadataJson = await invoke("metadata-json", resource)
             if (!current()) return
             invariant(typeof metadataJson === "string", "Expected metadata JSON string")
-            invariant(Array.isArray(bytes) && bytes.every(value => Number.isInteger(value) && value >= 0 && value <= 255), "Expected atlas byte list")
+            invariant(
+                Array.isArray(bytes) && bytes.every((value) => Number.isInteger(value) && value >= 0 && value <= 255),
+                "Expected atlas byte list",
+            )
             const font = validateFont(info, new Uint8Array(bytes), JSON.parse(metadataJson))
             const previous = this.resource
             if (this.renderer !== null) this.renderer.setFont(font)
             this.resource = resource
             this.font = { ...font, metadataJson }
             owned = false
-            try { this.showInfo(); this.draw() }
-            finally { if (previous !== null) await runtime.releaseResource(previous) }
+            try {
+                this.showInfo()
+                this.draw()
+            } finally {
+                if (previous !== null) await runtime.releaseResource(previous)
+            }
         } finally {
             if (owned) await runtime.releaseResource(resource)
         }
@@ -338,11 +410,17 @@ export class ViewFont extends ViewCanvasBase {
     }
 
     save({ saveAs = false } = {}) {
-        return this.operation(saveAs ? "Save Artery font as" : "Save Artery font", async current => {
+        return this.operation(saveAs ? "Save Artery font as" : "Save Artery font", async (current) => {
             if (this.resource === null) throw new UserError("Generate or open a font first")
-            const path = saveAs || this.savedPath === null
-                ? await this.choose("saver", "Save Artery font", "*.arfont", this.savedPath === null ? "font.arfont" : this.savedPath.split("/").pop())
-                : this.savedPath
+            const path =
+                saveAs || this.savedPath === null
+                    ? await this.choose(
+                          "saver",
+                          "Save Artery font",
+                          "*.arfont",
+                          this.savedPath === null ? "font.arfont" : this.savedPath.split("/").pop(),
+                      )
+                    : this.savedPath
             if (path === null) return false
             if (!current()) return
             if (!/\.arfont$/i.test(path)) throw new UserError("Save path must end in .arfont")
@@ -355,24 +433,31 @@ export class ViewFont extends ViewCanvasBase {
     }
 
     export() {
-        return this.operation("Export JSON + PNG", async current => {
+        return this.operation("Export JSON + PNG", async (current) => {
             if (this.resource === null || this.font === null) throw new UserError("Generate or open a font first")
             const path = await this.choose("saver", "Export JSON + PNG", "*.json", "font.json")
             if (path === null) return false
             if (!current()) return
             let linked
-            try { linked = linkedFontExport(this.font.metadata, path) }
-            catch (error) { if (!(error instanceof RangeError)) throw error; throw new UserError(error.message) }
-            const json = new TextEncoder().encode(JSON.stringify(linked.document, null, 2) + "\n")
+            try {
+                linked = linkedFontExport(this.font.metadata, path)
+            } catch (error) {
+                if (!(error instanceof RangeError)) throw error
+                throw new UserError(error.message)
+            }
+            const json = new TextEncoder().encode(`${JSON.stringify(linked.document, null, 2)}\n`)
             const png = await atlasPng(this.font)
             if (!current()) return
             await writeFile(linked.imagePath, png)
             // Publish JSON only after its image exists. Two file replacements are
             // not atomic; report a partial export explicitly rather than success.
-            try { await writeFile(linked.jsonPath, json) }
-            catch (error) {
+            try {
+                await writeFile(linked.jsonPath, json)
+            } catch (error) {
                 if (!(error instanceof UserError)) throw error
-                throw new UserError(`PNG saved at ${linked.imagePath}, but JSON export failed: ${error.message}. Export again to complete the pair.`)
+                throw new UserError(
+                    `PNG saved at ${linked.imagePath}, but JSON export failed: ${error.message}. Export again to complete the pair.`,
+                )
             }
         })
     }
@@ -382,8 +467,10 @@ export class ViewFont extends ViewCanvasBase {
         const { info, metadata } = this.font
         const values = [
             ["Dimensions", `${info.dimensions.width} × ${info.dimensions.height}`],
-            ["Format", info["pixel-format"]], ["Type", info["atlas-type"]],
-            ["Size (px/em)", info.size], ["Distance range", info["distance-range"]],
+            ["Format", info["pixel-format"]],
+            ["Type", info["atlas-type"]],
+            ["Size (px/em)", info.size],
+            ["Distance range", info["distance-range"]],
             ["Glyphs", metadata.glyphs.length],
         ]
         const body = this.element("info")
@@ -403,8 +490,10 @@ export class ViewFont extends ViewCanvasBase {
         if (this.ctx === null || this.renderer === null || this.font === null) return
         const size = this.field("preview-size").valueAsNumber
         if (!Number.isFinite(size) || size <= 0) return // Incomplete user edit, not internal state.
-        this.renderer.draw(this.field("sample").value, size, this.field("effect").value, this.field("display").value,
-            { width: this.canvas.width, height: this.canvas.height })
+        this.renderer.draw(this.field("sample").value, size, this.field("effect").value, this.field("display").value, {
+            width: this.canvas.width,
+            height: this.canvas.height,
+        })
         this.contentBounds = this.calculateContentBounds()
         super.draw()
     }
@@ -424,13 +513,22 @@ export class ViewFont extends ViewCanvasBase {
 
     disconnectedCallback() {
         ++this.epoch
-        if (this.renderer !== null) { this.renderer.destroy(); this.renderer = null }
+        if (this.renderer !== null) {
+            this.renderer.destroy()
+            this.renderer = null
+        }
         const resource = this.resource
         this.resource = null
         this.font = null
         // A save/encode may still borrow the current resource. Release it only
         // after that operation settles; a new unaccepted result releases itself.
-        const settled = this.pending === null ? Promise.resolve() : this.pending.then(() => {}, () => {})
+        const settled =
+            this.pending === null
+                ? Promise.resolve()
+                : this.pending.then(
+                      () => {},
+                      () => {},
+                  )
         if (resource !== null) void settled.then(() => runtime.releaseResource(resource))
         super.disconnectedCallback()
     }

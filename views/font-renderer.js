@@ -24,8 +24,8 @@ export function invariant(condition, message) {
 }
 
 export function codepoints(text) {
-    const result = [...new Set(Array.from(text, char => char.codePointAt(0)))]
-    if (result.some(code => code >= 0xd800 && code <= 0xdfff)) {
+    const result = [...new Set(Array.from(text, (char) => char.codePointAt(0)))]
+    if (result.some((code) => code >= 0xd800 && code <= 0xdfff)) {
         throw new RangeError("Characters must be Unicode scalars, not unpaired surrogates")
     }
     return result
@@ -38,14 +38,29 @@ function finite(value, name) {
 
 export function validateFont(info, pixels, metadata) {
     const { width, height } = info.dimensions
-    invariant(Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0, "Invalid atlas dimensions")
+    invariant(
+        Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0,
+        "Invalid atlas dimensions",
+    )
     const channels = { r8: 1, rgb8: 3, rgba8: 4 }[info["pixel-format"]]
     invariant(channels !== undefined, "Unsupported atlas pixel format")
     invariant(["sdf", "psdf", "msdf", "mtsdf"].includes(info["atlas-type"]), "Invalid atlas type")
-    invariant(pixels instanceof Uint8Array && pixels.length === width * height * channels, "Atlas pixel length does not match dimensions")
-    invariant(finite(info.size, "Atlas size") > 0 && finite(info["distance-range"], "Distance range") > 0, "Invalid atlas scale")
-    invariant(metadata.atlas.width === width && metadata.atlas.height === height, "Metadata dimensions disagree with atlas")
-    invariant(metadata.atlas.size === info.size && metadata.atlas.distanceRange === info["distance-range"], "Metadata scale disagrees with atlas")
+    invariant(
+        pixels instanceof Uint8Array && pixels.length === width * height * channels,
+        "Atlas pixel length does not match dimensions",
+    )
+    invariant(
+        finite(info.size, "Atlas size") > 0 && finite(info["distance-range"], "Distance range") > 0,
+        "Invalid atlas scale",
+    )
+    invariant(
+        metadata.atlas.width === width && metadata.atlas.height === height,
+        "Metadata dimensions disagree with atlas",
+    )
+    invariant(
+        metadata.atlas.size === info.size && metadata.atlas.distanceRange === info["distance-range"],
+        "Metadata scale disagrees with atlas",
+    )
     invariant(metadata.atlas.type === info["atlas-type"], "Metadata type disagrees with atlas")
     invariant(["top", "bottom"].includes(metadata.atlas.yOrigin), "Invalid metadata Y origin")
     invariant(Array.isArray(metadata.glyphs) && Array.isArray(metadata.kerning), "Invalid glyph or kerning metadata")
@@ -88,7 +103,7 @@ function pngChunk(type, payload) {
     let crc = 0xffffffff
     for (let index = 4; index < out.length - 4; index++) {
         crc ^= out[index]
-        for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0)
+        for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
     }
     new DataView(out.buffer).setUint32(out.length - 4, (crc ^ 0xffffffff) >>> 0)
     return out
@@ -99,8 +114,11 @@ export async function atlasPng(font) {
     const { width, height } = font.info.dimensions
     const rgba = atlasRgba(font)
     const rows = new Uint8Array((width * 4 + 1) * height)
-    for (let y = 0; y < height; y++) rows.set(rgba.subarray(y * width * 4, (y + 1) * width * 4), y * (width * 4 + 1) + 1)
-    const compressed = new Uint8Array(await new Response(new Blob([rows]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer())
+    for (let y = 0; y < height; y++)
+        rows.set(rgba.subarray(y * width * 4, (y + 1) * width * 4), y * (width * 4 + 1) + 1)
+    const compressed = new Uint8Array(
+        await new Response(new Blob([rows]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer(),
+    )
     const header = new Uint8Array(13)
     const view = new DataView(header.buffer)
     view.setUint32(0, width)
@@ -109,11 +127,16 @@ export async function atlasPng(font) {
     header[9] = 6 // RGBA, no gamma conversion
     const chunks = [
         new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-        pngChunk("IHDR", header), pngChunk("IDAT", compressed), pngChunk("IEND", new Uint8Array()),
+        pngChunk("IHDR", header),
+        pngChunk("IDAT", compressed),
+        pngChunk("IEND", new Uint8Array()),
     ]
     const output = new Uint8Array(chunks.reduce((length, chunk) => length + chunk.length, 0))
     let offset = 0
-    for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.length }
+    for (const chunk of chunks) {
+        output.set(chunk, offset)
+        offset += chunk.length
+    }
     return output
 }
 
@@ -126,7 +149,10 @@ export function buildGlyphMap(metadata) {
     const map = new Map()
     for (const glyph of metadata.glyphs) {
         invariant(isScalar(glyph.unicode) && !map.has(glyph.unicode), "Invalid or duplicate glyph Unicode")
-        invariant(Object.hasOwn(glyph, "planeBounds") === Object.hasOwn(glyph, "atlasBounds"), "Glyph bounds must be paired")
+        invariant(
+            Object.hasOwn(glyph, "planeBounds") === Object.hasOwn(glyph, "atlasBounds"),
+            "Glyph bounds must be paired",
+        )
         finite(glyph.advance, "Glyph advance")
         const result = { advance: glyph.advance, empty: !Object.hasOwn(glyph, "planeBounds") }
         if (!result.empty) {
@@ -149,25 +175,41 @@ export function buildGlyphMap(metadata) {
 export function layoutText(metadata, text, size, width) {
     invariant(Number.isFinite(size) && size > 0 && Number.isFinite(width) && width > 0, "Invalid preview dimensions")
     const glyphs = buildGlyphMap(metadata)
-    const kerning = new Map(metadata.kerning.map(pair => [`${pair.unicode1}:${pair.unicode2}`, finite(pair.advance, "Kerning advance")]))
+    const kerning = new Map(
+        metadata.kerning.map((pair) => [`${pair.unicode1}:${pair.unicode2}`, finite(pair.advance, "Kerning advance")]),
+    )
     const quads = []
     let x = 16
     let baseline = size + 16
     let previous = null
     for (const char of text) {
-        if (char === "\n") { x = 16; baseline += metadata.metrics.lineHeight * size; previous = null; continue }
+        if (char === "\n") {
+            x = 16
+            baseline += metadata.metrics.lineHeight * size
+            previous = null
+            continue
+        }
         const code = char.codePointAt(0)
         const glyph = glyphs.get(code)
-        if (!glyph) { previous = null; continue }
+        if (!glyph) {
+            previous = null
+            continue
+        }
         const key = `${previous}:${code}`
         if (kerning.has(key)) x += kerning.get(key) * size
         if (x + glyph.advance * size > width - 16 && x > 16) {
-            x = 16; baseline += metadata.metrics.lineHeight * size
+            x = 16
+            baseline += metadata.metrics.lineHeight * size
         }
         if (!glyph.empty) {
             const p = glyph.plane
-            quads.push({ x: x + (p.left + p.right) * size / 2, y: baseline - (p.top + p.bottom) * size / 2,
-                width: (p.right - p.left) * size, height: (p.top - p.bottom) * size, uv: glyph.uv })
+            quads.push({
+                x: x + ((p.left + p.right) * size) / 2,
+                y: baseline - ((p.top + p.bottom) * size) / 2,
+                width: (p.right - p.left) * size,
+                height: (p.top - p.bottom) * size,
+                uv: glyph.uv,
+            })
         }
         x += glyph.advance * size
         previous = code
@@ -272,7 +314,7 @@ export class FontRenderer {
         }
         gl.bindVertexArray(this.vao)
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,-1,1,1,-1,1,1]), gl.STATIC_DRAW)
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
         gl.enableVertexAttribArray(0)
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
         this.font = null
@@ -288,13 +330,29 @@ export class FontRenderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
         const { width, height } = font.info.dimensions
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, atlasRgba(font, "rgb", false))
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            width,
+            height,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            atlasRgba(font, "rgb", false),
+        )
     }
 
     draw(text, size, effect, view, viewport) {
         const gl = this.gl
         const canvas = this.canvas
-        invariant(Number.isInteger(viewport.width) && viewport.width > 0 && Number.isInteger(viewport.height) && viewport.height > 0, "Invalid renderer viewport")
+        invariant(
+            Number.isInteger(viewport.width) &&
+                viewport.width > 0 &&
+                Number.isInteger(viewport.height) &&
+                viewport.height > 0,
+            "Invalid renderer viewport",
+        )
         canvas.width = viewport.width
         canvas.height = viewport.height
         gl.viewport(0, 0, canvas.width, canvas.height)
@@ -307,7 +365,7 @@ export class FontRenderer {
         gl.bindTexture(gl.TEXTURE_2D, this.texture)
         gl.enable(gl.BLEND)
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-        const uniform = name => gl.getUniformLocation(this.program, name)
+        const uniform = (name) => gl.getUniformLocation(this.program, name)
         gl.uniform1i(uniform("uImg"), 0)
         gl.uniform2f(uniform("uResolution"), canvas.width, canvas.height)
         gl.uniform2f(uniform("uAtlasSize"), this.font.info.dimensions.width, this.font.info.dimensions.height)
@@ -320,8 +378,18 @@ export class FontRenderer {
         gl.uniform1i(uniform("uView"), modes.indexOf(view))
         const { width, height } = this.font.info.dimensions
         const fit = Math.min(canvas.width / width, canvas.height / height)
-        const quads = view === "sample" ? layoutText(this.font.metadata, text, size, canvas.width) :
-            [{ x: canvas.width / 2, y: canvas.height / 2, width: width * fit, height: height * fit, uv: [0, 0, 1, 1] }]
+        const quads =
+            view === "sample"
+                ? layoutText(this.font.metadata, text, size, canvas.width)
+                : [
+                      {
+                          x: canvas.width / 2,
+                          y: canvas.height / 2,
+                          width: width * fit,
+                          height: height * fit,
+                          uv: [0, 0, 1, 1],
+                      },
+                  ]
         for (const quad of quads) {
             gl.uniform4f(uniform("uRect"), quad.x, quad.y, quad.width, quad.height)
             gl.uniform4fv(uniform("uUV"), quad.uv)

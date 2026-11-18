@@ -6,7 +6,9 @@ import { inflateSync } from "node:zlib"
 // Only the pure production data/layout module is loaded: no fake DOM, Host,
 // Runtime, canvas or GPU implementation participates in these tests.
 const source = await readFile(new URL("../views/font-renderer.js", import.meta.url), "utf8")
-const { codepoints, validateFont, atlasRgba, atlasPng, buildGlyphMap, layoutText } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`)
+const { codepoints, validateFont, atlasRgba, atlasPng, buildGlyphMap, layoutText } = await import(
+    `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
+)
 
 function metadata() {
     return {
@@ -14,8 +16,18 @@ function metadata() {
         metrics: { lineHeight: 1.25 },
         glyphs: [
             { unicode: 32, advance: 0.25 },
-            { unicode: 65, advance: 0.6, planeBounds: { left: -0.1, right: 0.5, bottom: -0.2, top: 0.7 }, atlasBounds: { left: 0, right: 1, bottom: 0, top: 2 } },
-            { unicode: 86, advance: 0.6, planeBounds: { left: 0, right: 0.6, bottom: 0, top: 0.7 }, atlasBounds: { left: 1, right: 2, bottom: 0, top: 2 } },
+            {
+                unicode: 65,
+                advance: 0.6,
+                planeBounds: { left: -0.1, right: 0.5, bottom: -0.2, top: 0.7 },
+                atlasBounds: { left: 0, right: 1, bottom: 0, top: 2 },
+            },
+            {
+                unicode: 86,
+                advance: 0.6,
+                planeBounds: { left: 0, right: 0.6, bottom: 0, top: 0.7 },
+                atlasBounds: { left: 1, right: 2, bottom: 0, top: 2 },
+            },
             { unicode: 0x1f600, advance: 1 },
         ],
         kerning: [{ unicode1: 65, unicode2: 86, advance: -0.1 }],
@@ -23,7 +35,17 @@ function metadata() {
 }
 
 function font(format = "rgb8", pixels = [10, 20, 30, 80, 70, 60, 90, 100, 110, 200, 190, 180]) {
-    return validateFont({ dimensions: { width: 2, height: 2 }, "pixel-format": format, "atlas-type": "msdf", size: 48, "distance-range": 8 }, new Uint8Array(pixels), metadata())
+    return validateFont(
+        {
+            dimensions: { width: 2, height: 2 },
+            "pixel-format": format,
+            "atlas-type": "msdf",
+            size: 48,
+            "distance-range": 8,
+        },
+        new Uint8Array(pixels),
+        metadata(),
+    )
 }
 
 test("characters are deduplicated Unicode scalars, including supplementary planes", () => {
@@ -42,13 +64,16 @@ test("PNG preserves MTSDF RGB even where alpha is zero", async () => {
     const png = await atlasPng(sample)
     assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
     const chunks = []
-    for (let offset = 8; offset < png.length;) {
+    for (let offset = 8; offset < png.length; ) {
         const length = new DataView(png.buffer, png.byteOffset + offset).getUint32(0)
         const type = new TextDecoder().decode(png.subarray(offset + 4, offset + 8))
         chunks.push([type, png.subarray(offset + 8, offset + 8 + length)])
         offset += 12 + length
     }
-    assert.deepEqual(chunks.map(([type]) => type), ["IHDR", "IDAT", "IEND"])
+    assert.deepEqual(
+        chunks.map(([type]) => type),
+        ["IHDR", "IDAT", "IEND"],
+    )
     assert.equal(chunks[0][1][8], 8)
     assert.equal(chunks[0][1][9], 6)
     const rows = inflateSync(chunks[1][1])
