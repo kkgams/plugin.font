@@ -20,10 +20,10 @@ need network access.
 
 Run `make compile_commands.json` in the pinned shell before using clangd. `.clangd`
 selects the canonical WASI build database; metadata and clangd caches stay under
-`build.nosync/`. Clangd 21 does not discover SDK 33's target-specific libc++
-headers; use clangd compatible with SDK 33 (Clang 22). A clangd wrapper that injects
-host libc++ headers also causes false cross-target errors; use a cross-target-safe
-clangd configuration.
+`build.nosync/`. Configure clangd's `--query-driver` allowlist for the pinned
+Nix-store WASI SDK compiler to discover its target-specific libc++ headers. This
+also prevents Nix's clangd wrapper from injecting host headers into WASI analysis.
+Clangd 21 works with SDK 33 when configured this way; no version upgrade is needed.
 
 | Command | Purpose |
 | --- | --- |
