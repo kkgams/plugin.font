@@ -239,7 +239,6 @@ in vec2 uv;
 uniform sampler2D uImg;
 uniform float uRange;
 uniform vec2 uAtlasSize;
-uniform bool uMtsdf;
 uniform int uEffect;
 uniform int uView;
 out vec4 fragColor;
@@ -263,9 +262,9 @@ void main() {
     float shadow = (1.0-smoothstep(0.0,3.0,max(0.0,-shadowDist))) * (1.0-fill);
     vec3 color = vec3(0.88,0.99,0.94);
     float alpha = fill;
-    if (uMtsdf && uEffect==1) { color=mix(vec3(0.53,0.93,0.93),color,fill); alpha=max(outline,fill); }
-    else if (uMtsdf && uEffect==2) { color=mix(vec3(0.30,0.95,0.75),color,fill); alpha=max(fill,glow*0.8); }
-    else if (uMtsdf && uEffect==3) { color=mix(vec3(0.02,0.13,0.12),color,fill); alpha=max(fill,shadow*0.65); }
+    if (uEffect==1) { color=mix(vec3(0.53,0.93,0.93),color,fill); alpha=max(outline,fill); }
+    else if (uEffect==2) { color=mix(vec3(0.30,0.95,0.75),color,fill); alpha=max(fill,glow*0.8); }
+    else if (uEffect==3) { color=mix(vec3(0.02,0.13,0.12),vec3(0.06,0.10,0.12),fill); alpha=max(fill,shadow*0.65); }
     fragColor=vec4(color,alpha);
     if (alpha<0.001) discard;
 }`
@@ -356,7 +355,15 @@ export class FontRenderer {
         canvas.width = viewport.width
         canvas.height = viewport.height
         gl.viewport(0, 0, canvas.width, canvas.height)
-        gl.clearColor(0.03, 0.08, 0.1, 1)
+        const effects = ["fill", "outline", "glow", "shadow"]
+        const effectMode = effects.indexOf(effect)
+        invariant(effectMode !== -1, "Invalid preview effect")
+        const sampleEffect = this.font !== null && this.font.info["atlas-type"] === "mtsdf" && view === "sample"
+            ? effectMode
+            : 0
+        // A dark drop shadow needs a light preview surface, unlike glow and outline.
+        if (effects[sampleEffect] === "shadow") gl.clearColor(0.92, 0.95, 0.94, 1)
+        else gl.clearColor(0.03, 0.08, 0.1, 1)
         gl.clear(gl.COLOR_BUFFER_BIT)
         if (this.font === null) return
         gl.useProgram(this.program)
@@ -370,9 +377,7 @@ export class FontRenderer {
         gl.uniform2f(uniform("uResolution"), canvas.width, canvas.height)
         gl.uniform2f(uniform("uAtlasSize"), this.font.info.dimensions.width, this.font.info.dimensions.height)
         gl.uniform1f(uniform("uRange"), this.font.info["distance-range"])
-        gl.uniform1i(uniform("uMtsdf"), this.font.info["atlas-type"] === "mtsdf" ? 1 : 0)
-        invariant(["fill", "outline", "glow", "shadow"].includes(effect), "Invalid preview effect")
-        gl.uniform1i(uniform("uEffect"), ["fill", "outline", "glow", "shadow"].indexOf(effect))
+        gl.uniform1i(uniform("uEffect"), sampleEffect)
         const modes = ["sample", "rgb", "alpha", "median"]
         invariant(modes.includes(view), "Invalid preview mode")
         gl.uniform1i(uniform("uView"), modes.indexOf(view))
